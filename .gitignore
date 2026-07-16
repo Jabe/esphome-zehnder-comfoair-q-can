@@ -1,0 +1,7 @@
+__pycache__/
+.esphome/
+secrets.yaml
+.DS_Store
+
+# local working config (kept out of the repo, see the example yml instead)
+_config.yml
