@@ -20,12 +20,12 @@ api:
     key: !secret api_encryption_key
 
 packages:
-  base: github://Jabe/esphome-zehnder-comfoair-q-can/packages/core/base.yml@main
-  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@main
-  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@main
-  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@main
-  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@main
-  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@main
+  base: github://Jabe/esphome-zehnder-comfoair-q-can/packages/core/base.yml@v1.0.0
+  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v1.0.0
+  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@v1.0.0
+  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@v1.0.0
+  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@v1.0.0
+  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@v1.0.0
 ```
 
 Available packages:
