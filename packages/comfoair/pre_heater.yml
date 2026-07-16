@@ -1,0 +1,15 @@
+# Pre-heater / post-heater entities — only for units with the respective
+# hardware installed. With a ComfoFond/GHE, pre_heater_temp_after is the
+# temperature after the ground heat exchanger.
+substitutions:
+  entity_prefix: "comfoair "
+
+sensor:
+  - platform: zehnder_comfoair_q
+    pre_heater_power_cons_current: {id: pre_heater_power_cons_current, name: "${entity_prefix}Pre Heater Power Consumption Current"}
+    pre_heater_power_cons_ytd: {id: pre_heater_power_cons_ytd, name: "${entity_prefix}Pre Heater Power Consumption Ytd"}
+    pre_heater_power_cons_since_start: {id: pre_heater_power_cons_since_start, name: "${entity_prefix}Pre Heater Power Consumption Since Start"}
+    pre_heater_temp_before: {id: pre_heater_temp_before, name: "${entity_prefix}Pre Heater Temp Before"}
+    pre_heater_temp_after: {id: pre_heater_temp_after, name: "${entity_prefix}Pre Heater Temp After"}
+    post_heater_temp_after: {id: post_heater_temp_after, name: "${entity_prefix}Post Heater Temp After"}
+    pre_heater_humidity_after: {id: pre_heater_humidity_after, name: "${entity_prefix}Pre Heater Humidity After"}

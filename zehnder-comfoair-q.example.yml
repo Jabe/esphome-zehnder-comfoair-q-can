@@ -1,170 +1,42 @@
+# Example node config — explicit package shopping list (see packages/ layout).
+# Pick the packages you need; pre-heater and GHE are optional extras.
+# For local development from a git clone, use zehnder-comfoair-q.local.yml instead.
 substitutions:
-  device_name: comfoair
+  device_name: zehnder-comfoair-q-can
+  # entity_prefix: "comfoair "        # default; entity names become "comfoair Fan Level" etc.
+  # ota_password: !secret ota_password # uncomment to enable OTA auth
+  # CAN pins (defaults GPIO4/GPIO5, see packages/comfoair/base.yml):
+  # can_tx_pin: GPIO4
+  # can_rx_pin: GPIO5
 
-esphome:
-  name: zehnder-comfoair-q-can
-
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-    advanced:
-      minimum_chip_revision: "3.0"
-
-# Enable Home Assistant API
 api:
   encryption:
     key: !secret api_encryption_key
 
-ota:
-- platform: esphome
-  password: !secret ota_password
+# ---------------------------------------------------------------------------
+# Packages (map form for base, shorthand for the rest).
+# Pin a ref (tag or commit) and set refresh for reproducible remote builds.
+# ---------------------------------------------------------------------------
+packages:
+  base:
+    url: https://github.com/Jabe/esphome-zehnder-comfoair-q-can
+    file: packages/core/base.yml
+    ref: main
+    refresh: 1d
 
-ethernet:
-  type: LAN8720
-  mdc_pin: GPIO23
-  mdio_pin: GPIO18
-  clk:
-    mode: CLK_OUT
-    pin: 17
-  phy_addr: 0
-  power_pin: GPIO12
+  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@main
+  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@main
+  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@main
+  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@main
+  computed: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/computed.yml@main
+  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@main
+  # Only for units with the respective hardware installed:
+  # pre_heater: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/pre_heater.yml@main
+  # ghe: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/ghe.yml@main
 
-external_components:
-  - source:
-      type: local
-      path: components
-    components: [ zehnder_comfoair_q ]
-
-logger:
-  logs:
-    canbus: INFO
-
-canbus:
-  - platform: esp32_can
-    tx_pin: GPIO4
-    rx_pin: GPIO5
-    can_id: 0 # mandatory but we do not use it
-
-# bitrate (50kbps) and extended ids are set by the component;
-# PDOs are requested automatically for all configured entities
-zehnder_comfoair_q:
-  id: comfoair
-
-sensor:
-  - platform: zehnder_comfoair_q
-    fan_level:
-      name: '${device_name} Fan Level'
-    next_fan_change_in_seconds:
-      name: '${device_name} Next Fan Change In Raw'
-    next_bypass_change_in_seconds:
-      name: '${device_name} Next Bypass Change In Raw'
-    exhaust_fan_duty:
-      name: '${device_name} Exhaust Fan Duty'
-    supply_fan_duty:
-      name: '${device_name} Supply Fan Duty'
-    exhaust_fan_flow:
-      name: '${device_name} Exhaust Fan Flow'
-    supply_fan_flow:
-      name: '${device_name} Supply Fan Flow'
-    exhaust_fan_speed:
-      name: '${device_name} Exhaust Fan Speed'
-    supply_fan_speed:
-      name: '${device_name} Supply Fan Speed'
-    power_consumption_current:
-      name: '${device_name} Power Consumption Current'
-    power_consumption_ytd:
-      name: '${device_name} Power Consumption Ytd'
-    power_consumption_since_start:
-      name: '${device_name} Power Consumption Since Start'
-    filter_replacement_remaining_days:
-      name: '${device_name} Filter Replacement Remaining Days'
-    running_mean_outdoor_temp:
-      name: '${device_name} Running Mean Outdoor Temp'
-    profile_target_temp:
-      name: '${device_name} Profile Target Temp'
-    avoided_heating_actual:
-      name: '${device_name} Avoided Heating Actual'
-    avoided_heating_ytd:
-      name: '${device_name} Avoided Heating Ytd'
-    avoided_heating_total:
-      name: '${device_name} Avoided Heating Total'
-    avoided_cooling_actual:
-      name: '${device_name} Avoided Cooling Actual'
-    avoided_cooling_ytd:
-      name: '${device_name} Avoided Cooling Ytd'
-    avoided_cooling_total:
-      name: '${device_name} Avoided Cooling Total'
-    bypass_state:
-      name: '${device_name} Bypass State'
-    extract_air_temp:
-      name: '${device_name} Extract Air Temp'
-    exhaust_air_temp:
-      name: '${device_name} Exhaust Air Temp'
-    outdoor_air_temp:
-      name: '${device_name} Outdoor Air Temp'
-    supply_air_temp:
-      name: '${device_name} Supply Air Temp'
-    extract_air_humidity:
-      name: '${device_name} Extract Air Humidity'
-    exhaust_air_humidity:
-      name: '${device_name} Exhaust Air Humidity'
-    outdoor_air_humidity: # is this really still correct with ComfoFond/GHE installed?
-      name: '${device_name} Outdoor Air Humidity'
-    supply_air_humidity:
-      name: '${device_name} Supply Air Humidity'
-    indoor_air_temp_diff:
-      name: '${device_name} Indoor Air Temp Diff'
-    outdoor_air_temp_diff:
-      name: '${device_name} Outdoor Air Temp Diff'
-    heat_recovery_ratio:
-      name: '${device_name} Heat Recovery Ratio'
-    enthalpy_recovery_ratio:
-      name: '${device_name} Enthalpy Recovery Ratio'
-
-binary_sensor:
-  - platform: zehnder_comfoair_q
-    away_indicator:
-      name: '${device_name} Away Indicator'
-
-text_sensor:
-  - platform: zehnder_comfoair_q
-    operating_mode:
-      name: '${device_name} Operating Mode'
-    bypass_activation_mode:
-      name: '${device_name} Bypass Activation Mode'
-    temperature_profile:
-      name: '${device_name} Temperature Profile'
-    next_fan_change_in:
-      name: '${device_name} Next Fan Change In'
-    next_bypass_change_in:
-      name: '${device_name} Next Bypass Change In'
-
-button:
-  - platform: zehnder_comfoair_q
-    boost_15min:
-      name: '${device_name} Boost 15 Min.'
-    boost_30min:
-      name: '${device_name} Boost 30 Min.'
-    boost_off:
-      name: '${device_name} Boost off'
-    fan_level_0:
-      name: '${device_name} Set level 0'
-    fan_level_1:
-      name: '${device_name} Set level 1'
-    fan_level_2:
-      name: '${device_name} Set level 2'
-    fan_level_3:
-      name: '${device_name} Set level 3'
-    manual_mode_on:
-      name: '${device_name} Set manual mode on'
-    manual_mode_off:
-      name: '${device_name} Set manual mode off'
-    passive_temperature_auto:
-      name: '${device_name} Set passive temperature auto'
-    passive_temperature_off:
-      name: '${device_name} Set passive temperature off'
-    humidity_comfort_auto:
-      name: '${device_name} Set humidity comfort auto'
-    humidity_comfort_off:
-      name: '${device_name} Set humidity comfort off'
+# Top-level blocks deep-merge into the packages — no fork, no !extend needed.
+# Example: esp-idf advanced options on top of the board package:
+# esp32:
+#   framework:
+#     advanced:
+#       minimum_chip_revision: "3.0"

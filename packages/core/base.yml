@@ -1,0 +1,32 @@
+# Minimal core: esphome identity, logger, api, ota, component source.
+# No network, no entities — pick those as separate packages.
+substitutions:
+  # Where to load the zehnder_comfoair_q component from. For local development
+  # from a repo checkout, set this to "components" in your node config.
+  comfoair_component: "github://Jabe/esphome-zehnder-comfoair-q-can"
+  # How long ESPHome caches the component source. For testing a moving ref
+  # (e.g. @main), set this to 0s — or pin a commit SHA in comfoair_component.
+  comfoair_component_refresh: 1d
+  # OTA auth is off by default; set from your node config (e.g. !secret) to enable.
+  ota_password: ""
+
+esphome:
+  project:
+    name: Jabe.esphome-zehnder-comfoair-q-can
+    version: "1.0.0"
+  name: ${device_name}
+
+external_components:
+  - source: ${comfoair_component}
+    refresh: ${comfoair_component_refresh}
+    components: [zehnder_comfoair_q]
+
+logger:
+  level: DEBUG
+
+api:
+
+ota:
+  - platform: esphome
+    id: ota_esphome
+    password: ${ota_password}

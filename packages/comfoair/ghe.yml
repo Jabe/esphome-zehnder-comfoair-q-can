@@ -1,0 +1,10 @@
+# ComfoFond / GHE (ground heat exchanger) entities — only for units with a
+# ground heat exchanger installed.
+substitutions:
+  entity_prefix: "comfoair "
+
+sensor:
+  - platform: zehnder_comfoair_q
+    ghe_outdoor_temp: {id: ghe_outdoor_temp, name: "${entity_prefix}GHE Outdoor Temp"}
+    ghe_sole_temp: {id: ghe_sole_temp, name: "${entity_prefix}GHE Sole Temp"}
+    ghe_state: {id: ghe_state, name: "${entity_prefix}GHE State"}

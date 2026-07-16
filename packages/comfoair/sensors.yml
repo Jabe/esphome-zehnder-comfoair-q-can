@@ -1,0 +1,51 @@
+# All standard ComfoAir Q entities. Pre-heater and GHE (ground heat exchanger)
+# entities live in separate packages for units that have them installed.
+# The noisy sensors (duty, flow, speed, current power) come with sensible
+# smoothing filters built into the component; override per sensor via filters:.
+substitutions:
+  entity_prefix: "comfoair "
+
+sensor:
+  - platform: zehnder_comfoair_q
+    fan_level: {id: fan_level, name: "${entity_prefix}Fan Level"}
+    next_fan_change_in_seconds: {id: next_fan_change_in_seconds, name: "${entity_prefix}Next Fan Change In Raw"}
+    next_bypass_change_in_seconds: {id: next_bypass_change_in_seconds, name: "${entity_prefix}Next Bypass Change In Raw"}
+    exhaust_fan_duty: {id: exhaust_fan_duty, name: "${entity_prefix}Exhaust Fan Duty"}
+    supply_fan_duty: {id: supply_fan_duty, name: "${entity_prefix}Supply Fan Duty"}
+    exhaust_fan_flow: {id: exhaust_fan_flow, name: "${entity_prefix}Exhaust Fan Flow"}
+    supply_fan_flow: {id: supply_fan_flow, name: "${entity_prefix}Supply Fan Flow"}
+    exhaust_fan_speed: {id: exhaust_fan_speed, name: "${entity_prefix}Exhaust Fan Speed"}
+    supply_fan_speed: {id: supply_fan_speed, name: "${entity_prefix}Supply Fan Speed"}
+    power_consumption_current: {id: power_consumption_current, name: "${entity_prefix}Power Consumption Current"}
+    power_consumption_ytd: {id: power_consumption_ytd, name: "${entity_prefix}Power Consumption Ytd"}
+    power_consumption_since_start: {id: power_consumption_since_start, name: "${entity_prefix}Power Consumption Since Start"}
+    filter_replacement_remaining_days: {id: filter_replacement_remaining_days, name: "${entity_prefix}Filter Replacement Remaining Days"}
+    running_mean_outdoor_temp: {id: running_mean_outdoor_temp, name: "${entity_prefix}Running Mean Outdoor Temp"}
+    profile_target_temp: {id: profile_target_temp, name: "${entity_prefix}Profile Target Temp"}
+    avoided_heating_actual: {id: avoided_heating_actual, name: "${entity_prefix}Avoided Heating Actual"}
+    avoided_heating_ytd: {id: avoided_heating_ytd, name: "${entity_prefix}Avoided Heating Ytd"}
+    avoided_heating_total: {id: avoided_heating_total, name: "${entity_prefix}Avoided Heating Total"}
+    avoided_cooling_actual: {id: avoided_cooling_actual, name: "${entity_prefix}Avoided Cooling Actual"}
+    avoided_cooling_ytd: {id: avoided_cooling_ytd, name: "${entity_prefix}Avoided Cooling Ytd"}
+    avoided_cooling_total: {id: avoided_cooling_total, name: "${entity_prefix}Avoided Cooling Total"}
+    bypass_state: {id: bypass_state, name: "${entity_prefix}Bypass State"}
+    extract_air_temp: {id: extract_air_temp, name: "${entity_prefix}Extract Air Temp"}
+    exhaust_air_temp: {id: exhaust_air_temp, name: "${entity_prefix}Exhaust Air Temp"}
+    outdoor_air_temp: {id: outdoor_air_temp, name: "${entity_prefix}Outdoor Air Temp"}
+    supply_air_temp: {id: supply_air_temp, name: "${entity_prefix}Supply Air Temp"}
+    extract_air_humidity: {id: extract_air_humidity, name: "${entity_prefix}Extract Air Humidity"}
+    exhaust_air_humidity: {id: exhaust_air_humidity, name: "${entity_prefix}Exhaust Air Humidity"}
+    outdoor_air_humidity: {id: outdoor_air_humidity, name: "${entity_prefix}Outdoor Air Humidity"}
+    supply_air_humidity: {id: supply_air_humidity, name: "${entity_prefix}Supply Air Humidity"}
+
+binary_sensor:
+  - platform: zehnder_comfoair_q
+    away_indicator: {id: away_indicator, name: "${entity_prefix}Away Indicator"}
+
+text_sensor:
+  - platform: zehnder_comfoair_q
+    operating_mode: {id: operating_mode, name: "${entity_prefix}Operating Mode"}
+    bypass_activation_mode: {id: bypass_activation_mode, name: "${entity_prefix}Bypass Activation Mode"}
+    temperature_profile: {id: temperature_profile, name: "${entity_prefix}Temperature Profile"}
+    next_fan_change_in: {id: next_fan_change_in, name: "${entity_prefix}Next Fan Change In"}
+    next_bypass_change_in: {id: next_bypass_change_in, name: "${entity_prefix}Next Bypass Change In"}

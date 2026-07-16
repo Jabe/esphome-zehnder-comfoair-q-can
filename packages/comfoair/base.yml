@@ -1,0 +1,20 @@
+# ComfoAir Q core: CAN bus + component hub. CAN bitrate (50kbps) and extended
+# ids are set by the component itself; PDOs are requested automatically for
+# all configured entities (see the entity packages next to this file).
+substitutions:
+  can_tx_pin: GPIO4
+  can_rx_pin: GPIO5
+
+canbus:
+  - platform: esp32_can
+    id: comfoair_can
+    tx_pin: ${can_tx_pin}
+    rx_pin: ${can_rx_pin}
+    can_id: 0 # mandatory but we do not use it
+
+logger:
+  logs:
+    canbus: INFO # the canbus component logs every received frame at DEBUG
+
+zehnder_comfoair_q:
+  id: comfoair

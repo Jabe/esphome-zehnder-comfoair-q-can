@@ -1,0 +1,32 @@
+# Local checkout variant of the example — same shopping list, local !include paths.
+# Use this for `esphome config` / compile from a git clone (needs a secrets.yaml
+# next to it, see secrets.yaml.example).
+substitutions:
+  device_name: zehnder-comfoair-q-can
+  # Load the component from this working tree instead of github://
+  comfoair_component: components
+  # entity_prefix: "comfoair "        # default; entity names become "comfoair Fan Level" etc.
+  # ota_password: !secret ota_password # uncomment to enable OTA auth
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+packages:
+  base: !include packages/core/base.yml
+  board: !include packages/boards/esp32dev.yml
+  network: !include packages/connectivity/ethernet-lan8720.yml
+  comfoair: !include packages/comfoair/base.yml
+  sensors: !include packages/comfoair/sensors.yml
+  computed: !include packages/comfoair/computed.yml
+  controls: !include packages/comfoair/controls.yml
+  # Only for units with the respective hardware installed:
+  # pre_heater: !include packages/comfoair/pre_heater.yml
+  # ghe: !include packages/comfoair/ghe.yml
+
+# Top-level blocks deep-merge into the packages — no fork, no !extend needed.
+# Example: esp-idf advanced options on top of the board package:
+# esp32:
+#   framework:
+#     advanced:
+#       minimum_chip_revision: "3.0"

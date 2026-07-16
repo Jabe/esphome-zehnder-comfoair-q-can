@@ -1,0 +1,14 @@
+# Default generic ESP32 board (esp32dev / 4MB), e.g. Olimex ESP32-PoE.
+# Board-specific esp-idf options (like minimum_chip_revision) deep-merge from
+# your node config on top of this package.
+substitutions:
+  board: "esp32dev"
+  variant: "ESP32"
+  flash_size: "4MB"
+
+esp32:
+  board: ${board}
+  variant: ${variant}
+  flash_size: ${flash_size}
+  framework:
+    type: esp-idf
