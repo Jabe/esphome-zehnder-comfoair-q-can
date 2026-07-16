@@ -102,7 +102,13 @@ class ZehnderComfoAirQ : public PollingComponent {
   void set_level(uint8_t level);
 
   void set_boost(uint32_t duration_secs) { send_command_set_timer(duration_secs > 0, 0x01, 0x06, 3, duration_secs); }
-  void set_manual_mode(bool enable) { send_command_set_timer(enable, 0x08, 0x01, 1); }
+  void set_manual_mode(bool enable) {
+    send_command_set_timer(enable, 0x08, 0x01, 1);
+    // also clear a fan level schedule override (subunit 0x01) on disable: setting a
+    // level puts the unit into "Manual (limited)" without subunit 0x08 being active
+    if (!enable)
+      send_command_set_timer(false, 0x01, 0x01);
+  }
   // SCHEDULE subunit 0x03 = temperature profile (0x02 is the bypass and made the unit
   // misbehave with upstream's code); 0xffffffff = permanent
   void set_temp_profile(TemperatureProfile temp_profile) {
