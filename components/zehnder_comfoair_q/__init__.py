@@ -13,6 +13,9 @@ CONF_REQUEST_INTERVAL = "request_interval"
 CONF_REQUEST_IDS = "request_ids"
 CONF_REQUEST_DELAY = "request_delay"
 CONF_LOCAL_NODE_ID = "local_node_id"
+# RMI properties (e.g. the temperature/humidity control selects) don't push
+# changes like PDOs do, so they are polled; 0s disables polling
+CONF_PROPERTY_POLL_INTERVAL = "property_poll_interval"
 
 zehnder_comfoair_q_ns = cg.esphome_ns.namespace("zehnder_comfoair_q")
 ZehnderComfoAirQ = zehnder_comfoair_q_ns.class_("ZehnderComfoAirQ", cg.PollingComponent)
@@ -29,6 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_REQUEST_DELAY, default="100ms"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_LOCAL_NODE_ID, default=0x2A): cv.int_range(min=0x01, max=0x3F),
+        cv.Optional(CONF_PROPERTY_POLL_INTERVAL, default="60s"): cv.update_interval,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -45,5 +49,6 @@ async def to_code(config):
     cg.add(var.set_update_interval(config[CONF_REQUEST_INTERVAL]))
     cg.add(var.set_request_delay(config[CONF_REQUEST_DELAY]))
     cg.add(var.set_local_node_id(config[CONF_LOCAL_NODE_ID]))
+    cg.add(var.set_property_poll_interval(config[CONF_PROPERTY_POLL_INTERVAL]))
     for pdo_id in config[CONF_REQUEST_IDS]:
         cg.add(var.add_request_id(pdo_id))

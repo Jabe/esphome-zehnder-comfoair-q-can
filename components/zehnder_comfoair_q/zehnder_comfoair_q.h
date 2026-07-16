@@ -66,6 +66,8 @@ class ZehnderComfoAirQ : public PollingComponent {
   void set_canbus(canbus::Canbus *canbus) { this->canbus_ = canbus; }
   void set_request_delay(uint32_t request_delay) { this->request_delay_ = request_delay; }
   void set_local_node_id(uint8_t local_node_id) { this->local_node_id_ = local_node_id; }
+  // RMI properties don't push changes like PDOs do, so they are polled; 0 disables polling
+  void set_property_poll_interval(uint32_t interval_ms) { this->property_poll_interval_ = interval_ms; }
   // Adds a PDO id to the request cycle (sorted, duplicates ignored). Called for every
   // PDO a registered entity depends on, plus any manually configured request_ids.
   void add_request_id(uint16_t pdo_id);
@@ -209,6 +211,7 @@ class ZehnderComfoAirQ : public PollingComponent {
   };
   std::vector<PropertySelect> property_selects_{};
 #endif
+  uint32_t property_poll_interval_{60 * 1000};
 
   void send_can_message_(uint32_t can_id, bool remote_transmission_request, const std::vector<uint8_t> &data = {});
 };

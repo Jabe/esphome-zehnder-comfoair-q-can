@@ -96,6 +96,12 @@ void ZehnderComfoAirQ::setup() {
   }
 #endif
 
+#ifdef USE_SELECT
+  if (!this->property_selects_.empty() && this->property_poll_interval_ > 0) {
+    this->set_interval(this->property_poll_interval_, [this]() { this->refresh_property_selects(); });
+  }
+#endif
+
   // do a first request of all PDOs some time after starting (helpful for long intervals)
   this->set_timeout(10 * 1000, [this]() { this->update(); });
 }
@@ -306,9 +312,13 @@ void ZehnderComfoAirQ::handle_pdo_value_(uint16_t pdo_id, float value) {
 #ifdef USE_SWITCH
   if (binding.switch_ != nullptr) {
     switch (pdo_id) {
-      case 49:  // operating mode: manual mode switch is on for "Manual (permanent)"
-        binding.switch_->publish_state((int) value == 5);
+      case 49: {
+        // operating mode: 1 = manual (limited, e.g. fan level set on the display),
+        // 5 = manual (permanent) — both mean the unit is not following its schedule
+        const int mode = (int) value;
+        binding.switch_->publish_state(mode == 1 || mode == 5);
         break;
+      }
       default:
         binding.switch_->publish_state(value != 0.0f);
         break;

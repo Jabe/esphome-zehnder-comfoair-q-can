@@ -4,6 +4,8 @@
 substitutions:
   can_tx_pin: GPIO4
   can_rx_pin: GPIO5
+  # poll interval for RMI-property selects (they don't push changes like PDOs)
+  property_poll_interval: 60s
 
 canbus:
   - platform: esp32_can
@@ -18,3 +20,4 @@ logger:
 
 zehnder_comfoair_q:
   id: comfoair
+  property_poll_interval: ${property_poll_interval}
