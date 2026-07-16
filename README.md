@@ -3,7 +3,7 @@
 ESPHome component for Zehnder ComfoAir Q ventilation units (Q350/Q450/Q600) via CAN bus.
 
 All PDO decoding, value scaling, text mappings and commands live inside the component; entities are
-configured declaratively through `sensor`/`binary_sensor`/`text_sensor`/`button` platforms. The
+configured declaratively through `sensor`/`binary_sensor`/`text_sensor`/`select`/`switch`/`button` platforms. The
 component automatically requests exactly the PDOs needed for the configured entities.
 
 ## Usage
@@ -36,7 +36,7 @@ Available packages:
 - `comfoair/base.yml` — CAN bus + component hub (CAN pins via substitutions)
 - `comfoair/sensors.yml` — all standard sensor/binary_sensor/text_sensor entities
 - `comfoair/computed.yml` — computed sensors (temp diffs, heat/enthalpy recovery ratio)
-- `comfoair/controls.yml` — control buttons (boost, fan level, manual mode, ...)
+- `comfoair/controls.yml` — selects/switch with state sync (fan level, bypass, temperature profile, manual mode, ...) and boost buttons
 - `comfoair/pre_heater.yml` — pre-heater entities (optional hardware)
 - `comfoair/ghe.yml` — ComfoFond/ground-heat-exchanger entities (optional hardware)
 
@@ -50,7 +50,9 @@ from a git clone. Every entity is optional — the component only requests the C
 for what you configure. All available entity keys are listed in
 [sensor.py](components/zehnder_comfoair_q/sensor.py),
 [binary_sensor.py](components/zehnder_comfoair_q/binary_sensor.py),
-[text_sensor.py](components/zehnder_comfoair_q/text_sensor.py) and
+[text_sensor.py](components/zehnder_comfoair_q/text_sensor.py),
+[select.py](components/zehnder_comfoair_q/select.py),
+[switch.py](components/zehnder_comfoair_q/switch.py) and
 [button.py](components/zehnder_comfoair_q/button.py) — including pre-heater and GHE (ground
 heat exchanger) sensors for units that have them installed.
 

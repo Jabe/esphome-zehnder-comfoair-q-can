@@ -175,6 +175,20 @@ void ZehnderComfoAirQ::register_text_sensor(uint16_t pdo_id, text_sensor::TextSe
 }
 #endif
 
+#ifdef USE_SELECT
+void ZehnderComfoAirQ::register_select(uint16_t pdo_id, select::Select *sel) {
+  this->bindings_[pdo_id].select = sel;
+  this->add_request_id(pdo_id);
+}
+#endif
+
+#ifdef USE_SWITCH
+void ZehnderComfoAirQ::register_switch(uint16_t pdo_id, switch_::Switch *sw) {
+  this->bindings_[pdo_id].switch_ = sw;
+  this->add_request_id(pdo_id);
+}
+#endif
+
 void ZehnderComfoAirQ::on_can_frame_(uint32_t can_id, bool extended_id, bool remote_transmission_request,
                                      const std::vector<uint8_t> &data) {
   const bool is_pdo = extended_id && (can_id & PDO_CAN_ID_MASK) == PDO_CAN_ID_MATCH;
@@ -241,6 +255,31 @@ void ZehnderComfoAirQ::handle_pdo_value_(uint16_t pdo_id, float value) {
         break;
       default:
         binding.binary_sensor->publish_state(value != 0.0f);
+        break;
+    }
+  }
+#endif
+
+#ifdef USE_SELECT
+  if (binding.select != nullptr) {
+    // option order matches the PDO value range (0-based)
+    const auto idx = (int) value;
+    if (idx >= 0 && (size_t) idx < binding.select->traits.get_options().size()) {
+      binding.select->publish_state((size_t) idx);
+    } else {
+      ESP_LOGW(TAG, "PDO %d value %d has no select option", pdo_id, idx);
+    }
+  }
+#endif
+
+#ifdef USE_SWITCH
+  if (binding.switch_ != nullptr) {
+    switch (pdo_id) {
+      case 49:  // operating mode: manual mode switch is on for "Manual (permanent)"
+        binding.switch_->publish_state((int) value == 5);
+        break;
+      default:
+        binding.switch_->publish_state(value != 0.0f);
         break;
     }
   }

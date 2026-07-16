@@ -7,7 +7,6 @@ substitutions:
 
 sensor:
   - platform: zehnder_comfoair_q
-    fan_level: {id: fan_level, name: "${entity_prefix}Fan Level"}
     next_fan_change_in_seconds: {id: next_fan_change_in_seconds, name: "${entity_prefix}Next Fan Change In Raw"}
     next_bypass_change_in_seconds: {id: next_bypass_change_in_seconds, name: "${entity_prefix}Next Bypass Change In Raw"}
     exhaust_fan_duty: {id: exhaust_fan_duty, name: "${entity_prefix}Exhaust Fan Duty"}
@@ -42,10 +41,11 @@ binary_sensor:
   - platform: zehnder_comfoair_q
     away_indicator: {id: away_indicator, name: "${entity_prefix}Away Indicator"}
 
+# fan_level, bypass_activation_mode and temperature_profile are not listed here:
+# their state is covered by the synced selects in controls.yml (the entity keys
+# remain available for manual configs).
 text_sensor:
   - platform: zehnder_comfoair_q
     operating_mode: {id: operating_mode, name: "${entity_prefix}Operating Mode"}
-    bypass_activation_mode: {id: bypass_activation_mode, name: "${entity_prefix}Bypass Activation Mode"}
-    temperature_profile: {id: temperature_profile, name: "${entity_prefix}Temperature Profile"}
     next_fan_change_in: {id: next_fan_change_in, name: "${entity_prefix}Next Fan Change In"}
     next_bypass_change_in: {id: next_bypass_change_in, name: "${entity_prefix}Next Bypass Change In"}

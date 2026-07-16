@@ -1,20 +1,24 @@
-# Control buttons: boost timer, fan level, manual mode, passive temperature
-# and humidity comfort.
+# Controls: selects and a switch with real state sync from the unit's PDOs,
+# plus boost timer buttons. The passive temperature / humidity selects are RMI
+# properties without a state PDO — they publish optimistically after sending.
 substitutions:
   entity_prefix: "comfoair "
+
+select:
+  - platform: zehnder_comfoair_q
+    fan_level: {id: fan_level, name: "${entity_prefix}Fan Level"}
+    bypass_mode: {id: bypass_mode, name: "${entity_prefix}Bypass Mode"}
+    temperature_profile: {id: temperature_profile, name: "${entity_prefix}Temperature Profile"}
+    passive_temperature: {id: passive_temperature, name: "${entity_prefix}Passive Temperature"}
+    humidity_comfort: {id: humidity_comfort, name: "${entity_prefix}Humidity Comfort"}
+    humidity_protection: {id: humidity_protection, name: "${entity_prefix}Humidity Protection"}
+
+switch:
+  - platform: zehnder_comfoair_q
+    manual_mode: {id: manual_mode, name: "${entity_prefix}Manual Mode"}
 
 button:
   - platform: zehnder_comfoair_q
     boost_15min: {id: boost_15min, name: "${entity_prefix}Boost 15 Min."}
     boost_30min: {id: boost_30min, name: "${entity_prefix}Boost 30 Min."}
     boost_off: {id: boost_off, name: "${entity_prefix}Boost off"}
-    fan_level_0: {id: fan_level_0, name: "${entity_prefix}Set level 0"}
-    fan_level_1: {id: fan_level_1, name: "${entity_prefix}Set level 1"}
-    fan_level_2: {id: fan_level_2, name: "${entity_prefix}Set level 2"}
-    fan_level_3: {id: fan_level_3, name: "${entity_prefix}Set level 3"}
-    manual_mode_on: {id: manual_mode_on, name: "${entity_prefix}Set manual mode on"}
-    manual_mode_off: {id: manual_mode_off, name: "${entity_prefix}Set manual mode off"}
-    passive_temperature_auto: {id: passive_temperature_auto, name: "${entity_prefix}Set passive temperature auto"}
-    passive_temperature_off: {id: passive_temperature_off, name: "${entity_prefix}Set passive temperature off"}
-    humidity_comfort_auto: {id: humidity_comfort_auto, name: "${entity_prefix}Set humidity comfort auto"}
-    humidity_comfort_off: {id: humidity_comfort_off, name: "${entity_prefix}Set humidity comfort off"}

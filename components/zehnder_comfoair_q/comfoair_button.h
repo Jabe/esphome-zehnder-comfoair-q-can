@@ -7,26 +7,15 @@
 
 namespace esphome::zehnder_comfoair_q {
 
-enum class ButtonAction : uint8_t {
-  BOOST,                // value = duration in seconds, 0 = off
-  FAN_LEVEL,            // value = level 0..3
-  MANUAL_MODE,          // value = 0/1
-  PASSIVE_TEMPERATURE,  // value = OffAutoOn
-  HUMIDITY_COMFORT,     // value = OffAutoOn
-};
-
-class ComfoAirQButton final : public button::Button, public Parented<ZehnderComfoAirQ> {
+// Boost timer button; duration 0 switches boost off.
+class ComfoAirQBoostButton final : public button::Button, public Parented<ZehnderComfoAirQ> {
  public:
-  void set_action(ButtonAction action, uint32_t value) {
-    this->action_ = action;
-    this->value_ = value;
-  }
+  void set_duration(uint32_t duration_secs) { this->duration_secs_ = duration_secs; }
 
  protected:
-  void press_action() override;
+  void press_action() override { this->parent_->set_boost(this->duration_secs_); }
 
-  ButtonAction action_{ButtonAction::BOOST};
-  uint32_t value_{0};
+  uint32_t duration_secs_{0};
 };
 
 }  // namespace esphome::zehnder_comfoair_q

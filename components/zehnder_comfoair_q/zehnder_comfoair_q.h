@@ -14,6 +14,12 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <map>
 #include <string>
@@ -72,6 +78,13 @@ class ZehnderComfoAirQ : public PollingComponent {
 #ifdef USE_TEXT_SENSOR
   void register_text_sensor(uint16_t pdo_id, text_sensor::TextSensor *tsens);
 #endif
+#ifdef USE_SELECT
+  // The select's option order must match the PDO's value range (0-based).
+  void register_select(uint16_t pdo_id, select::Select *sel);
+#endif
+#ifdef USE_SWITCH
+  void register_switch(uint16_t pdo_id, switch_::Switch *sw);
+#endif
 
   void request_all_pdos();
   void request_pdo(uint16_t pdo_id);
@@ -81,15 +94,18 @@ class ZehnderComfoAirQ : public PollingComponent {
 
   void set_boost(uint32_t duration_secs) { send_command_set_timer(duration_secs > 0, 0x01, 0x06, 3, duration_secs); }
   void set_manual_mode(bool enable) { send_command_set_timer(enable, 0x08, 0x01, 1); }
+  // SCHEDULE subunit 0x03 = temperature profile (0x02 is the bypass and made the unit
+  // misbehave with upstream's code); 0xffffffff = permanent
   void set_temp_profile(TemperatureProfile temp_profile) {
-    send_command_set_timer(true, 0x02, 0x01, temp_profile, 0xffffffff);
+    send_command_set_timer(true, 0x03, 0x01, temp_profile, 0xffffffff);
   }
-  void set_bypass_mode(BypassMode bypass_mode, uint32_t duration_secs) {
-    send_command_set_timer(bypass_mode != BYPASS_AUTO, 0x02, 0x01, bypass_mode);
+  void set_bypass_mode(BypassMode bypass_mode, uint32_t duration_secs = 0xffffffff /* permanent */) {
+    send_command_set_timer(bypass_mode != BYPASS_AUTO, 0x02, 0x01, bypass_mode, duration_secs);
   }
   void set_temperature_passive(OffAutoOn oao) { send_command_set_property(0x1d /* TEMPHUMCONTROL */, 0x01, 0x04, oao); }
   void set_humidity_comfort(OffAutoOn oao) { send_command_set_property(0x1d /* TEMPHUMCONTROL */, 0x01, 0x06, oao); }
-  void set_humidity_protection(OffAutoOn oao) { send_command_set_property(0x1d /* TEMPHUMCONTROL */, 0x01, 0x06, oao); }
+  // property 0x07 = humidity protection (upstream used 0x06, which is humidity comfort)
+  void set_humidity_protection(OffAutoOn oao) { send_command_set_property(0x1d /* TEMPHUMCONTROL */, 0x01, 0x07, oao); }
 
   void send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id, uint8_t property_value = 0x00,
                               uint32_t duration_secs = 1 /* constant for timers with pre-defined durations */);
@@ -116,6 +132,12 @@ class ZehnderComfoAirQ : public PollingComponent {
 #endif
 #ifdef USE_TEXT_SENSOR
     text_sensor::TextSensor *text_sensor{nullptr};
+#endif
+#ifdef USE_SELECT
+    select::Select *select{nullptr};
+#endif
+#ifdef USE_SWITCH
+    switch_::Switch *switch_{nullptr};
 #endif
   };
 
