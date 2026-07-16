@@ -103,6 +103,9 @@ void ZehnderComfoAirQ::setup() {
 void ZehnderComfoAirQ::update() {
   if (!this->request_ids_.empty())
     this->request_all_pdos();
+#ifdef USE_SELECT
+  this->refresh_property_selects();
+#endif
 }
 
 void ZehnderComfoAirQ::dump_config() {
@@ -180,6 +183,30 @@ void ZehnderComfoAirQ::register_select(uint16_t pdo_id, select::Select *sel) {
   this->bindings_[pdo_id].select = sel;
   this->add_request_id(pdo_id);
 }
+
+void ZehnderComfoAirQ::register_property_select(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id,
+                                                select::Select *sel) {
+  this->property_selects_.push_back({unit_id, subunit_id, property_id, sel});
+}
+
+void ZehnderComfoAirQ::refresh_property_selects() {
+  for (const auto &binding : this->property_selects_) {
+    auto *sel = binding.select;
+    this->read_property(binding.unit_id, binding.subunit_id, binding.property_id,
+                        [sel](bool ok, const std::vector<uint8_t> &data) {
+                          if (!ok) {
+                            ESP_LOGW(TAG, "Property read for '%s' failed", sel->get_name().c_str());
+                            return;
+                          }
+                          if (data.size() != 1 || data[0] >= sel->traits.get_options().size()) {
+                            ESP_LOGW(TAG, "Unexpected property value for '%s': %s (please report)",
+                                     sel->get_name().c_str(), format_hex_pretty(data).c_str());
+                            return;
+                          }
+                          sel->publish_state((size_t) data[0]);
+                        });
+  }
+}
 #endif
 
 #ifdef USE_SWITCH
@@ -193,9 +220,13 @@ void ZehnderComfoAirQ::on_can_frame_(uint32_t can_id, bool extended_id, bool rem
                                      const std::vector<uint8_t> &data) {
   const bool is_pdo = extended_id && (can_id & PDO_CAN_ID_MASK) == PDO_CAN_ID_MATCH;
   if (!is_pdo) {
-    ESP_LOGV(TAG_DUMP, "can_id: 0x%08" PRIx32 ", rtr: %d, length: %d, content: %s", can_id,
-             remote_transmission_request, (int) data.size(),
-             remote_transmission_request ? "n/a" : format_hex_pretty(data).c_str());
+    if (extended_id && (can_id >> 24) == 0x1f && !remote_transmission_request) {
+      this->handle_command_frame_(can_id, data);
+    } else {
+      ESP_LOGV(TAG_DUMP, "can_id: 0x%08" PRIx32 ", rtr: %d, length: %d, content: %s", can_id,
+               remote_transmission_request, (int) data.size(),
+               remote_transmission_request ? "n/a" : format_hex_pretty(data).c_str());
+    }
     return;
   }
 
@@ -490,9 +521,30 @@ void ZehnderComfoAirQ::send_command_set_property(uint8_t unit_id, uint8_t subuni
   this->send_command({0x03, unit_id, subunit_id, property_id, property_value});
 }
 
-void ZehnderComfoAirQ::send_command(const std::vector<uint8_t> &command) {
+void ZehnderComfoAirQ::send_command(const std::vector<uint8_t> &command, rmi_callback_t callback) {
+  this->rmi_queue_.push_back({command, std::move(callback)});
+  this->send_next_rmi_();
+}
+
+void ZehnderComfoAirQ::read_property(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id,
+                                     rmi_callback_t callback) {
+  // command 0x01 = read, type 0x10 = actual value
+  this->send_command({0x01, unit_id, subunit_id, 0x10, property_id}, std::move(callback));
+}
+
+void ZehnderComfoAirQ::send_next_rmi_() {
+  if (this->rmi_in_flight_ || this->rmi_queue_.empty())
+    return;
+
+  const auto &command = this->rmi_queue_.front().command;
+  this->rmi_in_flight_ = true;
+  this->rmi_in_flight_seq_ = this->get_command_next_sequence_number_();
+  this->rmi_response_next_frame_ = 0;
+  this->rmi_response_buffer_.clear();
+
   const bool is_multi_message_command = command.size() > 8;
-  const auto can_id = this->get_command_next_can_id_(this->local_node_id_, 0x01, 0, is_multi_message_command, false, true);
+  const auto can_id = this->get_command_can_id_(this->local_node_id_, 0x01, 0, is_multi_message_command, false, true,
+                                                this->rmi_in_flight_seq_);
 
   if (is_multi_message_command) {
     std::vector<uint8_t> message_buffer;
@@ -509,13 +561,76 @@ void ZehnderComfoAirQ::send_command(const std::vector<uint8_t> &command) {
   } else {
     this->send_can_message_(can_id, false, command);
   }
+
+  this->set_timeout("rmi_response", 1500, [this]() {
+    ESP_LOGW(TAG, "Timeout waiting for command response (seq %d)", this->rmi_in_flight_seq_);
+    this->finish_rmi_(false, {});
+  });
 }
 
-uint32_t ZehnderComfoAirQ::get_command_next_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
-                                                    bool is_multi_message_command, bool response_error_occurred,
-                                                    bool is_request) {
-  return this->get_command_can_id_(src_node_id, dst_node_id, unknown_counter, is_multi_message_command,
-                                   response_error_occurred, is_request, this->get_command_next_sequence_number_());
+void ZehnderComfoAirQ::finish_rmi_(bool ok, const std::vector<uint8_t> &data) {
+  if (!this->rmi_in_flight_)
+    return;
+  this->cancel_timeout("rmi_response");
+  auto request = std::move(this->rmi_queue_.front());
+  this->rmi_queue_.pop_front();
+  this->rmi_in_flight_ = false;
+  if (request.callback)
+    request.callback(ok, data);
+  this->send_next_rmi_();
+}
+
+void ZehnderComfoAirQ::handle_command_frame_(uint32_t can_id, const std::vector<uint8_t> &data) {
+  const uint8_t dst_node_id = (can_id >> 6) & 0x3f;
+  const bool is_request = can_id & (1 << 16);
+  if (dst_node_id != this->local_node_id_ || is_request) {
+    // other bus participants talking to each other (or to us as a request)
+    ESP_LOGV(TAG_DUMP, "command frame: can_id: 0x%08" PRIx32 ", length: %d, content: %s", can_id, (int) data.size(),
+             format_hex_pretty(data).c_str());
+    return;
+  }
+
+  ESP_LOGD(TAG, "Command response: can_id: 0x%08" PRIx32 ", seq: %d, error: %d, length: %d, content: %s", can_id,
+           (int) ((can_id >> 17) & 0x3), (int) ((can_id >> 15) & 1), (int) data.size(),
+           format_hex_pretty(data).c_str());
+
+  if (!this->rmi_in_flight_) {
+    ESP_LOGW(TAG, "Unexpected command response (no command in flight)");
+    return;
+  }
+  const uint8_t sequence_number = (can_id >> 17) & 0x3;
+  if (sequence_number != this->rmi_in_flight_seq_) {
+    ESP_LOGW(TAG, "Command response with unexpected sequence number %d (expected %d)", sequence_number,
+             this->rmi_in_flight_seq_);
+    return;
+  }
+
+  if (can_id & (1 << 15)) {  // error flag
+    ESP_LOGW(TAG, "Command failed, error response: %s", format_hex_pretty(data).c_str());
+    this->finish_rmi_(false, data);
+    return;
+  }
+
+  if ((can_id & (1 << 14)) == 0) {  // single frame response
+    this->finish_rmi_(true, data);
+    return;
+  }
+
+  // multi frame response: first byte is the frame counter, bit 7 marks the last frame
+  if (data.empty())
+    return;
+  const uint8_t frame_counter = data[0] & 0x7f;
+  const bool is_last_frame = data[0] & 0x80;
+  if (frame_counter != this->rmi_response_next_frame_) {
+    ESP_LOGW(TAG, "Command response frame out of order (%d, expected %d)", frame_counter,
+             this->rmi_response_next_frame_);
+    this->finish_rmi_(false, {});
+    return;
+  }
+  this->rmi_response_next_frame_++;
+  this->rmi_response_buffer_.insert(this->rmi_response_buffer_.end(), data.begin() + 1, data.end());
+  if (is_last_frame)
+    this->finish_rmi_(true, this->rmi_response_buffer_);
 }
 
 uint32_t ZehnderComfoAirQ::get_command_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,

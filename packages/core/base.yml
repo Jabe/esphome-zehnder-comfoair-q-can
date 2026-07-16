@@ -13,7 +13,7 @@ substitutions:
 esphome:
   project:
     name: Jabe.esphome-zehnder-comfoair-q-can
-    version: "2.0.0"
+    version: "2.1.0"
   name: ${device_name}
 
 external_components:

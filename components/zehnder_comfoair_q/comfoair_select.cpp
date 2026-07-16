@@ -18,18 +18,19 @@ void ComfoAirQSelect::control(const std::string &value) {
     case SelectPurpose::TEMPERATURE_PROFILE:
       this->parent_->set_temp_profile(static_cast<TemperatureProfile>(*idx));
       break;
-    // RMI selects have no state PDO, so publish optimistically
+    // RMI selects have no state PDO: read the property back after setting it —
+    // the set and the reads run through the same command queue, in order
     case SelectPurpose::PASSIVE_TEMPERATURE:
       this->parent_->set_temperature_passive(static_cast<OffAutoOn>(*idx));
-      this->publish_state(value);
+      this->parent_->refresh_property_selects();
       break;
     case SelectPurpose::HUMIDITY_COMFORT:
       this->parent_->set_humidity_comfort(static_cast<OffAutoOn>(*idx));
-      this->publish_state(value);
+      this->parent_->refresh_property_selects();
       break;
     case SelectPurpose::HUMIDITY_PROTECTION:
       this->parent_->set_humidity_protection(static_cast<OffAutoOn>(*idx));
-      this->publish_state(value);
+      this->parent_->refresh_property_selects();
       break;
   }
 }

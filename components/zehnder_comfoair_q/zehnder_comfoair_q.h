@@ -21,6 +21,8 @@
 #include "esphome/components/switch/switch.h"
 #endif
 
+#include <deque>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -81,6 +83,11 @@ class ZehnderComfoAirQ : public PollingComponent {
 #ifdef USE_SELECT
   // The select's option order must match the PDO's value range (0-based).
   void register_select(uint16_t pdo_id, select::Select *sel);
+  // Select backed by an RMI property (no state PDO); its state is read back
+  // from the unit on boot, on every request cycle and after each set command.
+  // The option order must match the property's value range (0-based).
+  void register_property_select(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, select::Select *sel);
+  void refresh_property_selects();
 #endif
 #ifdef USE_SWITCH
   void register_switch(uint16_t pdo_id, switch_::Switch *sw);
@@ -110,7 +117,14 @@ class ZehnderComfoAirQ : public PollingComponent {
   void send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id, uint8_t property_value = 0x00,
                               uint32_t duration_secs = 1 /* constant for timers with pre-defined durations */);
   void send_command_set_property(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, uint8_t property_value);
-  void send_command(const std::vector<uint8_t> &command);
+
+  // Commands are queued and sent one at a time; the unit's response (matched by
+  // sequence number) completes a command and triggers the callback (if any).
+  using rmi_callback_t = std::function<void(bool ok, const std::vector<uint8_t> &data)>;
+  void send_command(const std::vector<uint8_t> &command) { this->send_command(command, nullptr); }
+  void send_command(const std::vector<uint8_t> &command, rmi_callback_t callback);
+  // RMI read of a property's actual value (command 0x01, type 0x10)
+  void read_property(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, rmi_callback_t callback);
 
   static std::string seconds_to_human_readable(int seconds);
 
@@ -166,13 +180,35 @@ class ZehnderComfoAirQ : public PollingComponent {
   sensor::Sensor *computed_sensors_[static_cast<size_t>(ComputedSensor::COUNT_)]{};
 #endif
 
-  uint32_t get_command_next_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
-                                    bool is_multi_message_command, bool response_error_occurred, bool is_request);
   uint32_t get_command_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
                                bool is_multi_message_command, bool response_error_occurred, bool is_request,
                                uint8_t sequence_number);
   uint8_t get_command_next_sequence_number_();
   uint8_t command_sequence_number_{0};
+
+  // command queue: one in-flight command, response matched via sequence number
+  struct RmiRequest {
+    std::vector<uint8_t> command;
+    rmi_callback_t callback;
+  };
+  std::deque<RmiRequest> rmi_queue_{};
+  bool rmi_in_flight_{false};
+  uint8_t rmi_in_flight_seq_{0};
+  uint8_t rmi_response_next_frame_{0};
+  std::vector<uint8_t> rmi_response_buffer_{};
+  void send_next_rmi_();
+  void finish_rmi_(bool ok, const std::vector<uint8_t> &data);
+  void handle_command_frame_(uint32_t can_id, const std::vector<uint8_t> &data);
+
+#ifdef USE_SELECT
+  struct PropertySelect {
+    uint8_t unit_id;
+    uint8_t subunit_id;
+    uint8_t property_id;
+    select::Select *select;
+  };
+  std::vector<PropertySelect> property_selects_{};
+#endif
 
   void send_can_message_(uint32_t can_id, bool remote_transmission_request, const std::vector<uint8_t> &data = {});
 };
