@@ -21,18 +21,18 @@ packages:
   base:
     url: https://github.com/Jabe/esphome-zehnder-comfoair-q-can
     file: packages/core/base.yml
-    ref: v1.0.0
+    ref: v2.0.0
     refresh: 1d
 
-  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v1.0.0
-  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@v1.0.0
-  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@v1.0.0
-  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@v1.0.0
-  computed: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/computed.yml@v1.0.0
-  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@v1.0.0
+  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v2.0.0
+  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@v2.0.0
+  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@v2.0.0
+  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@v2.0.0
+  computed: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/computed.yml@v2.0.0
+  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@v2.0.0
   # Only for units with the respective hardware installed:
-  # pre_heater: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/pre_heater.yml@v1.0.0
-  # ghe: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/ghe.yml@v1.0.0
+  # pre_heater: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/pre_heater.yml@v2.0.0
+  # ghe: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/ghe.yml@v2.0.0
 
 # Top-level blocks deep-merge into the packages — no fork, no !extend needed.
 # Example: esp-idf advanced options on top of the board package:
