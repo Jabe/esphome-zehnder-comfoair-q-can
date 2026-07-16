@@ -1,164 +1,513 @@
 #include "zehnder_comfoair_q.h"
 
-namespace zehnder_comfoair_q
-{
-    void ZehnderComfoAirQ::setup()
-    {
-        // do a first request of all PDOs some time after starting (helpful for long intervals)
-        this->set_timeout(1000 * 10, [this]()
-                          { this->update(); });
-    }
+#include "esphome/core/log.h"
 
-    void ZehnderComfoAirQ::update()
-    {
-        if (request_ids_.size() > 0)
-            request_all_pdos();
-    }
+#include <algorithm>
+#include <cinttypes>
+#include <cmath>
 
-    void ZehnderComfoAirQ::request_all_pdos()
-    {
-        ESP_LOGD(TAG, "Requesting all registered PDOs (count: %d)", request_ids_.size());
+namespace esphome::zehnder_comfoair_q {
 
-        if (request_next_pdo_pos_ == 0)
-            request_next_pdo_();
-        else
-            ESP_LOGW(TAG, "Skipping PDO request cycle as last cycle is still in progress.");
-    }
+static const char *const TAG = "comfoairq";
+// separate tag so CAN frame dumps can be silenced via logger: independently
+static const char *const TAG_DUMP = "comfoair_dump";
 
-    void ZehnderComfoAirQ::request_next_pdo_()
-    {
-        if (request_next_pdo_pos_ >= request_ids_.size())
-            return;
+// PDO frames: bits 24-28 clear (no command prefix), bit 6 set, node id in bits 0-5, PDO id in bits 14-23
+static constexpr uint32_t PDO_CAN_ID_MASK = 0b11111000000000011111111000000;
+static constexpr uint32_t PDO_CAN_ID_MATCH = 0b00000000000000000000001000000;
 
-        this->request_pdo(request_ids_[request_next_pdo_pos_]);
-        request_next_pdo_pos_++;
-        if (request_next_pdo_pos_ < request_ids_.size())
-        {
-            this->set_timeout(this->request_delay_, [this]()
-                              { this->request_next_pdo_(); });
-        }
-        else
-        {
-            request_next_pdo_pos_ = 0;
-        }
-    }
+// PDO ids used by the computed sensors
+static constexpr uint16_t PDO_EXTRACT_AIR_TEMP = 274;
+static constexpr uint16_t PDO_EXHAUST_AIR_TEMP = 275;
+static constexpr uint16_t PDO_OUTDOOR_AIR_TEMP = 276;
+static constexpr uint16_t PDO_SUPPLY_AIR_TEMP = 278;
+static constexpr uint16_t PDO_EXTRACT_AIR_HUMIDITY = 290;
+static constexpr uint16_t PDO_OUTDOOR_AIR_HUMIDITY = 292;
+static constexpr uint16_t PDO_SUPPLY_AIR_HUMIDITY = 294;
 
-    void ZehnderComfoAirQ::request_pdo(uint16_t pdo_id)
-    {
-        // ZehnderComfoAirQ does not care for the data length to be set corectly on transmission requests, so there is no need to send any data
-        this->send_can_message_((pdo_id << 14) + 0x40 + this->local_node_id_, true);
-    }
+const ZehnderComfoAirQ::PdoMeta *ZehnderComfoAirQ::find_pdo_meta_(uint16_t pdo_id) {
+  // {pdo_id, is_unsigned, scale}, sorted by pdo_id
+  static constexpr PdoMeta PDO_METAS[] = {
+      {16, true, 1},      // away indicator (raw, 7 = away)
+      {49, true, 1},      // operating mode
+      {65, true, 1},      // fan level
+      {66, true, 1},      // bypass activation mode
+      {67, true, 1},      // temperature profile
+      {81, false, 1},     // next fan change in (s, -1 = n/a)
+      {82, false, 1},     // next bypass change in (s, -1 = n/a)
+      {117, true, 1},     // exhaust fan duty (%)
+      {118, true, 1},     // supply fan duty (%)
+      {119, false, 1},    // exhaust fan flow (m³/h)
+      {120, false, 1},    // supply fan flow (m³/h)
+      {121, true, 1},     // exhaust fan speed (rpm)
+      {122, true, 1},     // supply fan speed (rpm)
+      {128, true, 1},     // power consumption current (W)
+      {129, true, 1},     // power consumption ytd (kWh)
+      {130, true, 1},     // power consumption since start (kWh)
+      {144, true, 1},     // pre heater power consumption current (W)
+      {145, true, 1},     // pre heater power consumption ytd (kWh)
+      {146, true, 1},     // pre heater power consumption since start (kWh)
+      {192, false, 1},    // filter replacement remaining (days)
+      {209, false, 0.1},  // running mean outdoor temp (°C)
+      {212, false, 0.1},  // profile target temp (°C)
+      {213, true, 1e-3},  // avoided heating actual (W -> kW)
+      {214, true, 1},     // avoided heating ytd (kWh)
+      {215, true, 1},     // avoided heating total (kWh)
+      {216, true, 1e-3},  // avoided cooling actual (W -> kW)
+      {217, true, 1},     // avoided cooling ytd (kWh)
+      {218, true, 1},     // avoided cooling total (kWh)
+      {220, false, 0.1},  // pre heater temp before (°C)
+      {221, false, 0.1},  // post heater temp after (°C)
+      {227, true, 1},     // bypass state (%)
+      {274, false, 0.1},  // extract air temp (°C)
+      {275, false, 0.1},  // exhaust air temp (°C)
+      {276, false, 0.1},  // outdoor air temp (°C)
+      {277, false, 0.1},  // pre heater temp after (°C)
+      {278, false, 0.1},  // supply air temp (°C)
+      {290, true, 1},     // extract air humidity (%)
+      {291, true, 1},     // exhaust air humidity (%)
+      {292, true, 1},     // outdoor air humidity (%)
+      {293, true, 1},     // pre heater humidity after (%)
+      {294, true, 1},     // supply air humidity (%)
+      {416, false, 0.1},  // ghe outdoor temp (°C)
+      {417, false, 0.1},  // ghe sole temp (°C)
+      {418, true, 1},     // ghe state (%)
+  };
 
-    void ZehnderComfoAirQ::set_level_float(float state)
-    {
-        uint8_t level;
-        if (state >= 1)
-            level = 3;
-        else if (state >= 0.5)
-            level = 2;
-        else if (state > 0)
-            level = 1;
-        else
-            level = 0;
-        ESP_LOGD(TAG, "send_cmd_level_float: state: %f, level: %d", state, level);
-
-        set_level(level);
-    }
-
-    void ZehnderComfoAirQ::set_level(uint8_t level)
-    {
-        send_command_set_timer(true, 0x01, 0x01, level);
-    }
-
-    void ZehnderComfoAirQ::send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id, uint8_t property_value, uint32_t duration_secs)
-    {
-        std::vector<uint8_t> command = {(uint8_t)(enable ? 0x84 : 0x85), 0x15 /* SCHEDULE */, subunit_id, property_id};
-        if (enable)
-            command.insert(command.end(), {0x00, 0x00, 0x00, 0x00, (uint8_t)(duration_secs), (uint8_t)(duration_secs >> 8),
-                                           (uint8_t)(duration_secs >> 16), (uint8_t)(duration_secs >> 24), property_value});
-        send_command(command);
-    }
-
-    void ZehnderComfoAirQ::send_command_set_property(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, uint8_t property_value)
-    {
-        send_command({0x03, unit_id, subunit_id, property_id, property_value});
-    }
-
-    void ZehnderComfoAirQ::send_command(const std::vector<uint8_t> &command)
-    {
-        auto is_multi_message_command = command.size() > 8;
-        auto can_id = get_command_next_can_id_(this->local_node_id_, 0x01, 0, is_multi_message_command, false, true);
-
-        if (is_multi_message_command)
-        {
-            std::vector<uint8_t> message_buffer;
-            int message_counter = 0;
-            for (auto command_pos = command.begin(); command_pos < command.end(); command_pos += 7)
-            {
-                auto is_last_message = command.end() - command_pos <= 7;
-                message_buffer.clear();
-                message_buffer.push_back(message_counter | (is_last_message ? 0x80 : 0));
-                message_buffer.insert(message_buffer.end(), command_pos, std::min(command_pos + 7, command.end()));
-                send_can_message_(can_id, false, message_buffer);
-
-                message_counter++;
-            }
-        }
-        else
-        {
-            send_can_message_(can_id, false, command);
-        }
-    }
-
-    uint32_t ZehnderComfoAirQ::get_command_next_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
-                                                        bool is_multi_message_command, bool response_error_occurred,
-                                                        bool is_request)
-    {
-        return get_command_can_id_(src_node_id, dst_node_id, unknown_counter, is_multi_message_command,
-                                   response_error_occurred, is_request, get_command_next_sequence_number_());
-    }
-
-    uint32_t ZehnderComfoAirQ::get_command_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
-                                                   bool is_multi_message_command, bool response_error_occurred,
-                                                   bool is_request, uint8_t sequence_number)
-    {
-        return 0x1f << 24 |
-               sequence_number << 17 |
-               (is_request ? 1 : 0) << 16 |
-               (response_error_occurred ? 1 : 0) << 15 |
-               (is_multi_message_command ? 1 : 0) << 14 |
-               unknown_counter << 12 |
-               dst_node_id << 6 |
-               src_node_id << 0;
-    }
-
-    uint8_t ZehnderComfoAirQ::get_command_next_sequence_number_()
-    {
-        this->command_sequence_number_ = (this->command_sequence_number_ + 1) & 0x3;
-        return this->command_sequence_number_;
-    }
-
-    void ZehnderComfoAirQ::send_can_message_(uint32_t can_id, bool remote_transmission_request, const std::vector<uint8_t> &data)
-    {
-        ESP_LOGD(TAG, "Send can message: id: 0x%08x (pdo_id: %d), rtr: %d, size: %d, content: %s", can_id, can_id >> 14,
-                 remote_transmission_request, data.size(), format_hex_pretty(data).c_str());
-
-        if (parent_ == nullptr)
-        {
-            ESP_LOGE(TAG, "Parent not set, exiting send_can_message_.");
-            return;
-        }
-
-        // We could have also called send_data directly, but using CanbusSendAction seem to be a bit more future-proof
-        // id(parent_).send_data(can_id, true, true, {});
-
-        CanbusSendAction<> canbus_send_action;
-        canbus_send_action.set_parent(parent_);
-        canbus_send_action.set_can_id(can_id);
-        // use_extended_id as already been set globally on parent
-        if (remote_transmission_request)
-            canbus_send_action.set_remote_transmission_request(true);
-        canbus_send_action.set_data_static(data.data(), data.size());
-        canbus_send_action.play();
-    }
+  for (const auto &meta : PDO_METAS) {
+    if (meta.pdo_id == pdo_id)
+      return &meta;
+  }
+  return nullptr;
 }
+
+void ZehnderComfoAirQ::setup() {
+  this->canbus_->add_callback(
+      [this](uint32_t can_id, bool extended_id, bool remote_transmission_request, const std::vector<uint8_t> &data) {
+        this->on_can_frame_(can_id, extended_id, remote_transmission_request, data);
+      });
+
+#ifdef USE_SENSOR
+  bool any_computed = false;
+  for (auto *sens : this->computed_sensors_)
+    any_computed |= sens != nullptr;
+  if (any_computed) {
+    this->set_interval(60 * 1000, [this]() { this->update_computed_sensors_(); });
+  }
+#endif
+
+  // do a first request of all PDOs some time after starting (helpful for long intervals)
+  this->set_timeout(10 * 1000, [this]() { this->update(); });
+}
+
+void ZehnderComfoAirQ::update() {
+  if (!this->request_ids_.empty())
+    this->request_all_pdos();
+}
+
+void ZehnderComfoAirQ::dump_config() {
+  ESP_LOGCONFIG(TAG, "Zehnder ComfoAir Q:");
+  ESP_LOGCONFIG(TAG, "  Local node id: 0x%02X", this->local_node_id_);
+  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Request delay: %" PRIu32 " ms", this->request_delay_);
+  std::string ids;
+  for (auto pdo_id : this->request_ids_) {
+    if (!ids.empty())
+      ids += ", ";
+    ids += to_string(pdo_id);
+  }
+  ESP_LOGCONFIG(TAG, "  Requested PDO ids (%d): %s", (int) this->request_ids_.size(), ids.c_str());
+}
+
+void ZehnderComfoAirQ::add_request_id(uint16_t pdo_id) {
+  auto it = std::lower_bound(this->request_ids_.begin(), this->request_ids_.end(), pdo_id);
+  if (it == this->request_ids_.end() || *it != pdo_id)
+    this->request_ids_.insert(it, pdo_id);
+}
+
+#ifdef USE_SENSOR
+void ZehnderComfoAirQ::register_sensor(uint16_t pdo_id, sensor::Sensor *sens) {
+  this->bindings_[pdo_id].sensor = sens;
+  this->add_request_id(pdo_id);
+}
+
+void ZehnderComfoAirQ::register_computed_sensor(ComputedSensor kind, sensor::Sensor *sens) {
+  this->computed_sensors_[static_cast<size_t>(kind)] = sens;
+  switch (kind) {
+    case ComputedSensor::INDOOR_AIR_TEMP_DIFF:
+      this->add_request_id(PDO_EXTRACT_AIR_TEMP);
+      this->add_request_id(PDO_SUPPLY_AIR_TEMP);
+      break;
+    case ComputedSensor::OUTDOOR_AIR_TEMP_DIFF:
+      this->add_request_id(PDO_EXHAUST_AIR_TEMP);
+      this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
+      break;
+    case ComputedSensor::HEAT_RECOVERY_RATIO:
+      this->add_request_id(PDO_EXTRACT_AIR_TEMP);
+      this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
+      this->add_request_id(PDO_SUPPLY_AIR_TEMP);
+      break;
+    case ComputedSensor::ENTHALPY_RECOVERY_RATIO:
+      this->add_request_id(PDO_EXTRACT_AIR_TEMP);
+      this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
+      this->add_request_id(PDO_SUPPLY_AIR_TEMP);
+      this->add_request_id(PDO_EXTRACT_AIR_HUMIDITY);
+      this->add_request_id(PDO_OUTDOOR_AIR_HUMIDITY);
+      this->add_request_id(PDO_SUPPLY_AIR_HUMIDITY);
+      break;
+    default:
+      break;
+  }
+}
+#endif
+
+#ifdef USE_BINARY_SENSOR
+void ZehnderComfoAirQ::register_binary_sensor(uint16_t pdo_id, binary_sensor::BinarySensor *bsens) {
+  this->bindings_[pdo_id].binary_sensor = bsens;
+  this->add_request_id(pdo_id);
+}
+#endif
+
+#ifdef USE_TEXT_SENSOR
+void ZehnderComfoAirQ::register_text_sensor(uint16_t pdo_id, text_sensor::TextSensor *tsens) {
+  this->bindings_[pdo_id].text_sensor = tsens;
+  this->add_request_id(pdo_id);
+}
+#endif
+
+void ZehnderComfoAirQ::on_can_frame_(uint32_t can_id, bool extended_id, bool remote_transmission_request,
+                                     const std::vector<uint8_t> &data) {
+  const bool is_pdo = extended_id && (can_id & PDO_CAN_ID_MASK) == PDO_CAN_ID_MATCH;
+  if (!is_pdo) {
+    ESP_LOGV(TAG_DUMP, "can_id: 0x%08" PRIx32 ", rtr: %d, length: %d, content: %s", can_id,
+             remote_transmission_request, (int) data.size(),
+             remote_transmission_request ? "n/a" : format_hex_pretty(data).c_str());
+    return;
+  }
+
+  ESP_LOGD(TAG_DUMP, "Node: %d, PDO: %d, rtr: %d, length: %d, content: %s (can_id: 0x%08" PRIx32 ")",
+           (int) (can_id & 0x3f), (int) (can_id >> 14), remote_transmission_request, (int) data.size(),
+           remote_transmission_request ? "n/a" : format_hex_pretty(data).c_str(), can_id);
+  if (remote_transmission_request)
+    return;
+
+  const uint16_t pdo_id = can_id >> 14;
+  const auto *meta = find_pdo_meta_(pdo_id);
+  if (meta == nullptr)
+    return;
+
+  float value;
+  switch (data.size()) {
+    case 1:
+      value = data[0];
+      break;
+    case 2: {
+      const uint16_t raw = (uint16_t) data[0] | ((uint16_t) data[1] << 8);
+      value = meta->is_unsigned ? (float) raw : (float) (int16_t) raw;
+      break;
+    }
+    case 4: {
+      const uint32_t raw =
+          (uint32_t) data[0] | ((uint32_t) data[1] << 8) | ((uint32_t) data[2] << 16) | ((uint32_t) data[3] << 24);
+      value = meta->is_unsigned ? (float) raw : (float) (int32_t) raw;
+      break;
+    }
+    default:
+      ESP_LOGW(TAG, "Unable to infer type from can message size: %d (PDO: %d)", (int) data.size(), pdo_id);
+      return;
+  }
+
+  this->handle_pdo_value_(pdo_id, value * meta->scale);
+}
+
+void ZehnderComfoAirQ::handle_pdo_value_(uint16_t pdo_id, float value) {
+  this->last_pdo_values_[pdo_id] = value;
+
+  auto it = this->bindings_.find(pdo_id);
+  if (it == this->bindings_.end())
+    return;
+  const auto &binding = it->second;
+
+#ifdef USE_SENSOR
+  if (binding.sensor != nullptr)
+    binding.sensor->publish_state(value);
+#endif
+
+#ifdef USE_BINARY_SENSOR
+  if (binding.binary_sensor != nullptr) {
+    switch (pdo_id) {
+      case 16:  // away indicator: value 7 = away
+        binding.binary_sensor->publish_state(value == 7.0f);
+        break;
+      default:
+        binding.binary_sensor->publish_state(value != 0.0f);
+        break;
+    }
+  }
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  if (binding.text_sensor != nullptr) {
+    switch (pdo_id) {
+      case 49:
+        binding.text_sensor->publish_state(operating_mode_to_string_((int) value));
+        break;
+      case 66:
+        binding.text_sensor->publish_state(bypass_activation_mode_to_string_((int) value));
+        break;
+      case 67:
+        binding.text_sensor->publish_state(temperature_profile_to_string_((int) value));
+        break;
+      case 81:
+      case 82:
+        binding.text_sensor->publish_state(seconds_to_human_readable((int) value));
+        break;
+      default:
+        binding.text_sensor->publish_state(to_string((int) value));
+        break;
+    }
+  }
+#endif
+}
+
+float ZehnderComfoAirQ::get_last_pdo_value_(uint16_t pdo_id) const {
+  auto it = this->last_pdo_values_.find(pdo_id);
+  return it != this->last_pdo_values_.end() ? it->second : NAN;
+}
+
+#ifdef USE_SENSOR
+void ZehnderComfoAirQ::update_computed_sensors_() {
+  const float extract_temp = this->get_last_pdo_value_(PDO_EXTRACT_AIR_TEMP);
+  const float exhaust_temp = this->get_last_pdo_value_(PDO_EXHAUST_AIR_TEMP);
+  const float outdoor_temp = this->get_last_pdo_value_(PDO_OUTDOOR_AIR_TEMP);
+  const float supply_temp = this->get_last_pdo_value_(PDO_SUPPLY_AIR_TEMP);
+
+  auto *indoor_diff = this->computed_sensors_[static_cast<size_t>(ComputedSensor::INDOOR_AIR_TEMP_DIFF)];
+  if (indoor_diff != nullptr)
+    indoor_diff->publish_state(supply_temp - extract_temp);
+
+  auto *outdoor_diff = this->computed_sensors_[static_cast<size_t>(ComputedSensor::OUTDOOR_AIR_TEMP_DIFF)];
+  if (outdoor_diff != nullptr)
+    outdoor_diff->publish_state(exhaust_temp - outdoor_temp);
+
+  auto *heat_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HEAT_RECOVERY_RATIO)];
+  if (heat_recovery != nullptr) {
+    heat_recovery->publish_state(
+        std::min(100.0f, std::max(0.0f, 100 * ((supply_temp - outdoor_temp) / (extract_temp - outdoor_temp)))));
+  }
+
+  auto *enthalpy_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::ENTHALPY_RECOVERY_RATIO)];
+  if (enthalpy_recovery != nullptr) {
+    auto abs_humidity = [](float rh, float temp) -> float {
+      return (6.112 * exp((17.67 * temp) / (temp + 243.5)) * rh * 2.1674) / (temp + 273.15);
+    };
+
+    const float supply_ah = abs_humidity(this->get_last_pdo_value_(PDO_SUPPLY_AIR_HUMIDITY), supply_temp);
+    const float outdoor_ah = abs_humidity(this->get_last_pdo_value_(PDO_OUTDOOR_AIR_HUMIDITY), outdoor_temp);
+    const float extract_ah = abs_humidity(this->get_last_pdo_value_(PDO_EXTRACT_AIR_HUMIDITY), extract_temp);
+
+    enthalpy_recovery->publish_state(
+        std::min(100.0f, std::max(0.0f, 100 * ((supply_ah - outdoor_ah) / (extract_ah - outdoor_ah)))));
+  }
+}
+#endif
+
+std::string ZehnderComfoAirQ::operating_mode_to_string_(int value) {
+  switch (value) {
+    case 1:
+      return "Manual (limited)";
+    case 2:
+      return "PRESETRF";
+    case 3:
+      return "PRESETANALOG";
+    case 4:
+      return "PRESETRFANALOG";
+    case 5:
+      return "Manual (permanent)";
+    case 6:
+      return "Boost";
+    case 7:
+      return "Boost (RF)";
+    case 8:
+      return "Bathroom Switch";
+    case 11:
+      return "Away";
+    case 255:
+      return "Auto";
+    default:
+      return to_string(value);
+  }
+}
+
+std::string ZehnderComfoAirQ::bypass_activation_mode_to_string_(int value) {
+  switch (value) {
+    case 0:
+      return "Auto";
+    case 1:
+      return "Activated";
+    case 2:
+      return "Deactivated";
+    default:
+      return to_string(value);
+  }
+}
+
+std::string ZehnderComfoAirQ::temperature_profile_to_string_(int value) {
+  switch (value) {
+    case 0:
+      return "Normal";
+    case 1:
+      return "Cold";
+    case 2:
+      return "Warm";
+    default:
+      return to_string(value);
+  }
+}
+
+std::string ZehnderComfoAirQ::seconds_to_human_readable(int seconds) {
+  if (seconds < 0)
+    return "n/a";
+
+  std::string output;
+  if (output.length() > 0 || seconds >= 86400) {
+    int days = seconds / 86400;
+    output += to_string(days) + "d";
+    seconds -= days * 86400;
+  }
+  if (output.length() > 0 || seconds >= 3600) {
+    int hours = seconds / 3600;
+    output += to_string(hours) + "h";
+    seconds -= hours * 3600;
+  }
+  if (output.length() > 0 || seconds >= 60) {
+    int minutes = seconds / 60;
+    output += to_string(minutes) + "m";
+    seconds -= minutes * 60;
+  }
+  output += to_string(seconds) + "s";
+
+  return output;
+}
+
+void ZehnderComfoAirQ::request_all_pdos() {
+  ESP_LOGD(TAG, "Requesting all registered PDOs (count: %d)", (int) this->request_ids_.size());
+
+  if (this->request_next_pdo_pos_ == 0) {
+    this->request_next_pdo_();
+  } else {
+    ESP_LOGW(TAG, "Skipping PDO request cycle as last cycle is still in progress.");
+  }
+}
+
+void ZehnderComfoAirQ::request_next_pdo_() {
+  if (this->request_next_pdo_pos_ >= this->request_ids_.size())
+    return;
+
+  this->request_pdo(this->request_ids_[this->request_next_pdo_pos_]);
+  this->request_next_pdo_pos_++;
+  if (this->request_next_pdo_pos_ < this->request_ids_.size()) {
+    this->set_timeout(this->request_delay_, [this]() { this->request_next_pdo_(); });
+  } else {
+    this->request_next_pdo_pos_ = 0;
+  }
+}
+
+void ZehnderComfoAirQ::request_pdo(uint16_t pdo_id) {
+  // the unit does not care for the data length to be set correctly on transmission requests,
+  // so there is no need to send any data
+  this->send_can_message_((pdo_id << 14) + 0x40 + this->local_node_id_, true);
+}
+
+void ZehnderComfoAirQ::set_level_float(float state) {
+  uint8_t level;
+  if (state >= 1)
+    level = 3;
+  else if (state >= 0.5)
+    level = 2;
+  else if (state > 0)
+    level = 1;
+  else
+    level = 0;
+  ESP_LOGD(TAG, "send_cmd_level_float: state: %f, level: %d", state, level);
+
+  this->set_level(level);
+}
+
+void ZehnderComfoAirQ::set_level(uint8_t level) { this->send_command_set_timer(true, 0x01, 0x01, level); }
+
+void ZehnderComfoAirQ::send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id,
+                                              uint8_t property_value, uint32_t duration_secs) {
+  std::vector<uint8_t> command = {(uint8_t) (enable ? 0x84 : 0x85), 0x15 /* SCHEDULE */, subunit_id, property_id};
+  if (enable) {
+    command.insert(command.end(), {0x00, 0x00, 0x00, 0x00, (uint8_t) (duration_secs), (uint8_t) (duration_secs >> 8),
+                                   (uint8_t) (duration_secs >> 16), (uint8_t) (duration_secs >> 24), property_value});
+  }
+  this->send_command(command);
+}
+
+void ZehnderComfoAirQ::send_command_set_property(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id,
+                                                 uint8_t property_value) {
+  this->send_command({0x03, unit_id, subunit_id, property_id, property_value});
+}
+
+void ZehnderComfoAirQ::send_command(const std::vector<uint8_t> &command) {
+  const bool is_multi_message_command = command.size() > 8;
+  const auto can_id = this->get_command_next_can_id_(this->local_node_id_, 0x01, 0, is_multi_message_command, false, true);
+
+  if (is_multi_message_command) {
+    std::vector<uint8_t> message_buffer;
+    int message_counter = 0;
+    for (auto command_pos = command.begin(); command_pos < command.end(); command_pos += 7) {
+      const bool is_last_message = command.end() - command_pos <= 7;
+      message_buffer.clear();
+      message_buffer.push_back(message_counter | (is_last_message ? 0x80 : 0));
+      message_buffer.insert(message_buffer.end(), command_pos, std::min(command_pos + 7, command.end()));
+      this->send_can_message_(can_id, false, message_buffer);
+
+      message_counter++;
+    }
+  } else {
+    this->send_can_message_(can_id, false, command);
+  }
+}
+
+uint32_t ZehnderComfoAirQ::get_command_next_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
+                                                    bool is_multi_message_command, bool response_error_occurred,
+                                                    bool is_request) {
+  return this->get_command_can_id_(src_node_id, dst_node_id, unknown_counter, is_multi_message_command,
+                                   response_error_occurred, is_request, this->get_command_next_sequence_number_());
+}
+
+uint32_t ZehnderComfoAirQ::get_command_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
+                                               bool is_multi_message_command, bool response_error_occurred,
+                                               bool is_request, uint8_t sequence_number) {
+  return 0x1f << 24 |                                //
+         sequence_number << 17 |                     //
+         (is_request ? 1 : 0) << 16 |                //
+         (response_error_occurred ? 1 : 0) << 15 |   //
+         (is_multi_message_command ? 1 : 0) << 14 |  //
+         unknown_counter << 12 |                     //
+         dst_node_id << 6 |                          //
+         src_node_id << 0;
+}
+
+uint8_t ZehnderComfoAirQ::get_command_next_sequence_number_() {
+  this->command_sequence_number_ = (this->command_sequence_number_ + 1) & 0x3;
+  return this->command_sequence_number_;
+}
+
+void ZehnderComfoAirQ::send_can_message_(uint32_t can_id, bool remote_transmission_request,
+                                         const std::vector<uint8_t> &data) {
+  ESP_LOGD(TAG, "Send can message: id: 0x%08" PRIx32 " (pdo_id: %" PRIu32 "), rtr: %d, size: %d, content: %s", can_id,
+           can_id >> 14, remote_transmission_request, (int) data.size(), format_hex_pretty(data).c_str());
+
+  if (this->canbus_ == nullptr) {
+    ESP_LOGE(TAG, "Canbus not set, exiting send_can_message_.");
+    return;
+  }
+
+  this->canbus_->send_data(can_id, true, remote_transmission_request, data);
+}
+
+}  // namespace esphome::zehnder_comfoair_q
