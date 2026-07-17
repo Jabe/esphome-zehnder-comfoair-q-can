@@ -657,9 +657,7 @@ void ZehnderComfoAirQ::set_level_float(float state) {
   this->set_level(level);
 }
 
-void ZehnderComfoAirQ::set_level(uint8_t level, uint32_t duration_secs) {
-  this->send_command_set_timer(true, 0x01, 0x01, level, duration_secs);
-}
+void ZehnderComfoAirQ::set_level(uint8_t level) { this->send_command_set_timer(true, 0x01, 0x01, level); }
 
 void ZehnderComfoAirQ::send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id,
                                               uint8_t property_value, uint32_t duration_secs) {

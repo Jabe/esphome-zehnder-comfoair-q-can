@@ -116,8 +116,14 @@ class ZehnderComfoAirQ : public PollingComponent {
   void request_pdo(uint16_t pdo_id);
 
   void set_level_float(float state);
-  // duration_secs: 1 = the unit's default override duration, 0xffffffff = permanent
-  void set_level(uint8_t level, uint32_t duration_secs = 1);
+  // Sets the level via SCHEDULE property 0x01; the unit ignores the duration
+  // field here and applies its own default override duration (typically 2h).
+  void set_level(uint8_t level);
+  // Sets the level for an explicit duration via the timer property 0x06 —
+  // the same mechanism as the boost, which is just this with level 3.
+  void set_level_timer(uint8_t level, uint32_t duration_secs) {
+    send_command_set_timer(duration_secs > 0, 0x01, 0x06, level, duration_secs);
+  }
 
   void set_boost(uint32_t duration_secs) { send_command_set_timer(duration_secs > 0, 0x01, 0x06, 3, duration_secs); }
   void set_manual_mode(bool enable) {
