@@ -129,6 +129,9 @@ class ZehnderComfoAirQ : public PollingComponent {
 
   void set_boost(uint32_t duration_secs) { send_command_set_timer(duration_secs > 0, 0x01, 0x06, 3, duration_secs); }
   void set_manual_mode(bool enable) {
+    // a pending emulated level timer is obsolete either way and must not
+    // fire its auto-revert into the newly chosen mode later
+    cancel_emulated_level_timer_();
     send_command_set_timer(enable, 0x08, 0x01, 1);
     // also clear a fan level schedule override (subunit 0x01) on disable: setting a
     // level puts the unit into "Manual (limited)" without subunit 0x08 being active

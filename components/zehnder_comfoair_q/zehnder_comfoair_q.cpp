@@ -682,7 +682,11 @@ void ZehnderComfoAirQ::set_level_float(float state) {
   this->set_level(level);
 }
 
-void ZehnderComfoAirQ::set_level(uint8_t level) { this->send_command_set_timer(true, 0x01, 0x01, level); }
+void ZehnderComfoAirQ::set_level(uint8_t level) {
+  // a new override replaces an emulated timer including its auto-revert
+  this->cancel_emulated_level_timer_();
+  this->send_command_set_timer(true, 0x01, 0x01, level);
+}
 
 void ZehnderComfoAirQ::set_level_timer(uint8_t level, uint32_t duration_secs) {
   if (duration_secs == 0) {  // cancel both mechanisms
@@ -721,6 +725,8 @@ void ZehnderComfoAirQ::set_level_timer(uint8_t level, uint32_t duration_secs) {
 }
 
 void ZehnderComfoAirQ::cancel_emulated_level_timer_() {
+  if (!this->level_timer_active_)
+    return;
   this->cancel_timeout("level_timer");
   this->cancel_interval("level_timer_tick");
   this->level_timer_active_ = false;
