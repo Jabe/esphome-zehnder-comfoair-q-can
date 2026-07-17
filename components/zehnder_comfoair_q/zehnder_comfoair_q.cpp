@@ -385,6 +385,19 @@ void ZehnderComfoAirQ::handle_pdo_value_(uint16_t pdo_id, float value) {
   if (pdo_id == 81 && this->level_timer_active_)
     return;
 
+  // The countdown PDOs tick every second while a timer runs, which would spam
+  // HA's recorder with useless state changes. Only publish on jumps of >= 30s
+  // (timer set, extended or cancelled) or on transitions from/to "n/a".
+  if (pdo_id == 81 || pdo_id == 82) {
+    auto last = this->last_published_countdowns_.find(pdo_id);
+    if (last != this->last_published_countdowns_.end()) {
+      const bool na_transition = (value < 0) != (last->second < 0);
+      if (!na_transition && std::abs(value - last->second) < 30.0f)
+        return;
+    }
+    this->last_published_countdowns_[pdo_id] = value;
+  }
+
   auto it = this->bindings_.find(pdo_id);
   if (it == this->bindings_.end())
     return;

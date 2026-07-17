@@ -264,6 +264,9 @@ class ZehnderComfoAirQ : public PollingComponent {
   void publish_next_fan_change_(int seconds);
   void publish_next_fan_change_remaining_();
 
+  // countdown PDOs tick every second while a timer runs — throttle them
+  std::map<uint16_t, float> last_published_countdowns_{};
+
   void send_can_message_(uint32_t can_id, bool remote_transmission_request, const std::vector<uint8_t> &data = {});
 };
 
