@@ -27,7 +27,7 @@ zehnder_comfoair_q:
 # patterns). duration_seconds > 0: level 3 uses the unit's native boost
 # timer, other levels are emulated by the component (ESP-side auto-revert).
 # 0 = the unit's default override duration (typically 2h, "Manual (limited)"),
-# -1 = permanent boost timer (level 3 only).
+# -1 = permanent: native boost timer for level 3, manual mode + level otherwise.
 api:
   actions:
     - action: set_fan_level

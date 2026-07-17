@@ -124,10 +124,13 @@ class ZehnderComfoAirQ : public PollingComponent {
   // boost timer (property 0x06 — it always runs level 3, the level byte is
   // ignored); other levels are emulated with the 0x01 override plus an
   // ESP-side auto-revert, with the countdown published on the "next fan
-  // change" entities. Duration 0 cancels both mechanisms.
+  // change" entities. Duration 0 cancels both mechanisms; 0xffffffff means
+  // permanent (native permanent boost for level 3, permanent manual mode at
+  // the level otherwise).
   void set_level_timer(uint8_t level, uint32_t duration_secs);
 
-  void set_boost(uint32_t duration_secs) { send_command_set_timer(duration_secs > 0, 0x01, 0x06, 3, duration_secs); }
+  // routed through set_level_timer so a running emulated timer is cleaned up
+  void set_boost(uint32_t duration_secs) { set_level_timer(3, duration_secs); }
   void set_manual_mode(bool enable) {
     // a pending emulated level timer is obsolete either way and must not
     // fire its auto-revert into the newly chosen mode later
@@ -263,6 +266,9 @@ class ZehnderComfoAirQ : public PollingComponent {
   // emulated fan level timer (levels other than 3)
   bool level_timer_active_{false};
   uint32_t level_timer_end_ms_{0};
+  // stale operating mode responses right after the timer starts must not
+  // cancel it (see the external-change check in handle_pdo_value_)
+  uint32_t level_timer_grace_end_ms_{0};
   void cancel_emulated_level_timer_();
   void publish_next_fan_change_(int seconds);
   void publish_next_fan_change_remaining_();

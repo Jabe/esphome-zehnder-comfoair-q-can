@@ -381,6 +381,15 @@ void ZehnderComfoAirQ::on_can_frame_(uint32_t can_id, bool extended_id, bool rem
 void ZehnderComfoAirQ::handle_pdo_value_(uint16_t pdo_id, float value) {
   this->last_pdo_values_[pdo_id] = value;
 
+  // an operating mode chosen outside of HA (display, app) while an emulated
+  // level timer runs makes the timer obsolete — stop its countdown, re-apply
+  // and auto-revert instead of fighting the user's choice
+  if (pdo_id == 49 && this->level_timer_active_ && (int) value != 1 &&
+      (int32_t) (millis() - this->level_timer_grace_end_ms_) >= 0) {
+    ESP_LOGI(TAG, "Operating mode changed externally, cancelling emulated level timer");
+    this->cancel_emulated_level_timer_();
+  }
+
   // while an emulated level timer runs, its countdown owns the "next fan change" entities
   if (pdo_id == 81 && this->level_timer_active_)
     return;
@@ -709,18 +718,34 @@ void ZehnderComfoAirQ::set_level_timer(uint8_t level, uint32_t duration_secs) {
     return;
   }
 
+  if (duration_secs == 0xffffffff) {
+    // permanent non-boost level: the 0x01 override always expires after the
+    // unit's ~2h default, so permanent means manual mode at that level
+    this->set_manual_mode(true);
+    this->set_level(level);
+    return;
+  }
+
   // Emulated timer: 0x01 override plus ESP-side auto-revert. No display
   // countdown; after an ESP reboot the timer is gone and the unit's own
   // default override duration acts as the backstop.
+  if (duration_secs > 2147483)  // ~24.8 days, keeps the ms countdown math in int32 range
+    duration_secs = 2147483;
   this->send_command_set_timer(false, 0x01, 0x06);  // a running boost would take priority
   this->set_level(level);
   this->level_timer_active_ = true;
   this->level_timer_end_ms_ = millis() + duration_secs * 1000;
+  this->level_timer_grace_end_ms_ = millis() + 10 * 1000;
   this->set_timeout("level_timer", duration_secs * 1000, [this]() {
     this->cancel_emulated_level_timer_();
     this->set_manual_mode(false);
   });
-  this->set_interval("level_timer_tick", 30 * 1000, [this]() { this->publish_next_fan_change_remaining_(); });
+  this->set_interval("level_timer_tick", 30 * 1000, [this, level]() {
+    // re-apply the override so the unit's ~2h default never expires mid-timer
+    // (the unit would silently fall back to its schedule)
+    this->send_command_set_timer(true, 0x01, 0x01, level);
+    this->publish_next_fan_change_remaining_();
+  });
   this->publish_next_fan_change_remaining_();
 }
 
@@ -734,6 +759,10 @@ void ZehnderComfoAirQ::cancel_emulated_level_timer_() {
 }
 
 void ZehnderComfoAirQ::publish_next_fan_change_(int seconds) {
+  // keep the countdown throttle in sync with what was actually published, so
+  // the first real PDO value after the timer ends passes the n/a transition
+  // check in handle_pdo_value_ immediately
+  this->last_published_countdowns_[81] = seconds;
   auto it = this->bindings_.find(81);
   if (it == this->bindings_.end())
     return;
