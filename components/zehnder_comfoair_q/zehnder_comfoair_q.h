@@ -120,11 +120,12 @@ class ZehnderComfoAirQ : public PollingComponent {
   // Sets the level via SCHEDULE property 0x01; the unit ignores the duration
   // field here and applies its own default override duration (typically 2h).
   void set_level(uint8_t level);
-  // Sets the level for an explicit duration via the timer property 0x06 —
-  // the same mechanism as the boost, which is just this with level 3.
-  void set_level_timer(uint8_t level, uint32_t duration_secs) {
-    send_command_set_timer(duration_secs > 0, 0x01, 0x06, level, duration_secs);
-  }
+  // Runs a level for an explicit duration. Level 3 uses the unit's native
+  // boost timer (property 0x06 — it always runs level 3, the level byte is
+  // ignored); other levels are emulated with the 0x01 override plus an
+  // ESP-side auto-revert, with the countdown published on the "next fan
+  // change" entities. Duration 0 cancels both mechanisms.
+  void set_level_timer(uint8_t level, uint32_t duration_secs);
 
   void set_boost(uint32_t duration_secs) { send_command_set_timer(duration_secs > 0, 0x01, 0x06, 3, duration_secs); }
   void set_manual_mode(bool enable) {
@@ -255,6 +256,13 @@ class ZehnderComfoAirQ : public PollingComponent {
 #endif
   bool has_property_entities_() const;
   uint32_t property_poll_interval_{60 * 1000};
+
+  // emulated fan level timer (levels other than 3)
+  bool level_timer_active_{false};
+  uint32_t level_timer_end_ms_{0};
+  void cancel_emulated_level_timer_();
+  void publish_next_fan_change_(int seconds);
+  void publish_next_fan_change_remaining_();
 
   void send_can_message_(uint32_t can_id, bool remote_transmission_request, const std::vector<uint8_t> &data = {});
 };

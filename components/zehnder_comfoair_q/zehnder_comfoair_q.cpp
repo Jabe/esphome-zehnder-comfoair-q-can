@@ -381,6 +381,10 @@ void ZehnderComfoAirQ::on_can_frame_(uint32_t can_id, bool extended_id, bool rem
 void ZehnderComfoAirQ::handle_pdo_value_(uint16_t pdo_id, float value) {
   this->last_pdo_values_[pdo_id] = value;
 
+  // while an emulated level timer runs, its countdown owns the "next fan change" entities
+  if (pdo_id == 81 && this->level_timer_active_)
+    return;
+
   auto it = this->bindings_.find(pdo_id);
   if (it == this->bindings_.end())
     return;
@@ -666,6 +670,68 @@ void ZehnderComfoAirQ::set_level_float(float state) {
 }
 
 void ZehnderComfoAirQ::set_level(uint8_t level) { this->send_command_set_timer(true, 0x01, 0x01, level); }
+
+void ZehnderComfoAirQ::set_level_timer(uint8_t level, uint32_t duration_secs) {
+  if (duration_secs == 0) {  // cancel both mechanisms
+    this->send_command_set_timer(false, 0x01, 0x06);
+    if (this->level_timer_active_) {
+      this->cancel_emulated_level_timer_();
+      this->set_manual_mode(false);
+    }
+    return;
+  }
+
+  if (level == 3) {
+    // native boost timer: display countdown, survives ESP reboots
+    if (this->level_timer_active_) {
+      // clear a running emulated timer including its override, the boost takes over
+      this->cancel_emulated_level_timer_();
+      this->set_manual_mode(false);
+    }
+    this->send_command_set_timer(true, 0x01, 0x06, 3, duration_secs);
+    return;
+  }
+
+  // Emulated timer: 0x01 override plus ESP-side auto-revert. No display
+  // countdown; after an ESP reboot the timer is gone and the unit's own
+  // default override duration acts as the backstop.
+  this->send_command_set_timer(false, 0x01, 0x06);  // a running boost would take priority
+  this->set_level(level);
+  this->level_timer_active_ = true;
+  this->level_timer_end_ms_ = millis() + duration_secs * 1000;
+  this->set_timeout("level_timer", duration_secs * 1000, [this]() {
+    this->cancel_emulated_level_timer_();
+    this->set_manual_mode(false);
+  });
+  this->set_interval("level_timer_tick", 30 * 1000, [this]() { this->publish_next_fan_change_remaining_(); });
+  this->publish_next_fan_change_remaining_();
+}
+
+void ZehnderComfoAirQ::cancel_emulated_level_timer_() {
+  this->cancel_timeout("level_timer");
+  this->cancel_interval("level_timer_tick");
+  this->level_timer_active_ = false;
+  this->publish_next_fan_change_(-1);
+}
+
+void ZehnderComfoAirQ::publish_next_fan_change_(int seconds) {
+  auto it = this->bindings_.find(81);
+  if (it == this->bindings_.end())
+    return;
+#ifdef USE_SENSOR
+  if (it->second.sensor != nullptr)
+    it->second.sensor->publish_state(seconds);
+#endif
+#ifdef USE_TEXT_SENSOR
+  if (it->second.text_sensor != nullptr)
+    it->second.text_sensor->publish_state(seconds_to_human_readable(seconds));
+#endif
+}
+
+void ZehnderComfoAirQ::publish_next_fan_change_remaining_() {
+  const auto remaining_ms = (int32_t) (this->level_timer_end_ms_ - millis());
+  this->publish_next_fan_change_(remaining_ms > 0 ? remaining_ms / 1000 : 0);
+}
 
 void ZehnderComfoAirQ::send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id,
                                               uint8_t property_value, uint32_t duration_secs) {

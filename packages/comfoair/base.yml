@@ -23,10 +23,11 @@ zehnder_comfoair_q:
   property_poll_interval: ${property_poll_interval}
 
 # HA action for automations: unlike the fan level select, this can be re-sent
-# with the same level to restart the unit's override timer (safe-by-default
-# patterns). duration_seconds > 0 uses the timer mechanism (shows as "Boost"
-# in the operating mode), 0 = the unit's default override duration (typically
-# 2h, shows as "Manual (limited)"), -1 = permanent timer.
+# with the same level to restart the override/timer (safe-by-default
+# patterns). duration_seconds > 0: level 3 uses the unit's native boost
+# timer, other levels are emulated by the component (ESP-side auto-revert).
+# 0 = the unit's default override duration (typically 2h, "Manual (limited)"),
+# -1 = permanent boost timer (level 3 only).
 api:
   actions:
     - action: set_fan_level

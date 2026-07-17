@@ -18,9 +18,11 @@ ComfoAirQFanLevelTimerButton = zehnder_comfoair_q_ns.class_(
 CONF_FAN_LEVEL_TIMERS = "fan_level_timers"
 CONF_FAN_LEVEL_TIMER_OFF = "fan_level_timer_off"
 
-# Fan level timer buttons ("Party Timer" on the unit's display): run a fan
-# level for an explicit duration, with a countdown on the display. The classic
-# boost is simply level 3. fan_level_timer_off cancels a running timer.
+# Fan level timer buttons: run a fan level for an explicit duration. Level 3
+# uses the unit's native boost timer ("Party Timer" on the display, with
+# countdown); other levels are emulated by the component (override plus
+# ESP-side auto-revert, countdown on the "next fan change" entities).
+# fan_level_timer_off cancels a running timer.
 _TIMER_SCHEMA = button.button_schema(
     ComfoAirQFanLevelTimerButton, icon="mdi:fan-clock"
 ).extend(
