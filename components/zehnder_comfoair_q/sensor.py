@@ -225,11 +225,13 @@ PDO_SENSORS = {
 
 
 def _temperature_diff_schema():
+    # deliberately no temperature device_class: HA's automatic unit conversion
+    # would apply the K -> degC offset, which is wrong for a difference
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_KELVIN,
         accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,
+        icon="mdi:delta",
     )
 
 
