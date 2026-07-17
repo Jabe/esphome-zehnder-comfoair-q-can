@@ -17,6 +17,9 @@ static constexpr uint32_t PDO_CAN_ID_MASK = 0b11111000000000011111111000000;
 static constexpr uint32_t PDO_CAN_ID_MATCH = 0b00000000000000000000001000000;
 
 // PDO ids used by the computed sensors
+static constexpr uint16_t PDO_EXHAUST_FAN_FLOW = 119;
+static constexpr uint16_t PDO_SUPPLY_FAN_FLOW = 120;
+static constexpr uint16_t PDO_POWER_CONSUMPTION = 128;
 static constexpr uint16_t PDO_EXTRACT_AIR_TEMP = 274;
 static constexpr uint16_t PDO_EXHAUST_AIR_TEMP = 275;
 static constexpr uint16_t PDO_OUTDOOR_AIR_TEMP = 276;
@@ -35,6 +38,21 @@ static float water_content_g_kg(float rh, float temp) {
 static float enthalpy_kj_kg(float rh, float temp) {
   const float x_kg_kg = water_content_g_kg(rh, temp) / 1000.0f;
   return 1.006f * temp + x_kg_kg * (2501.0f + 1.86f * temp);
+}
+
+// air density at standard pressure in kg/m³
+static float air_density_kg_m3(float temp) { return 101325.0f / (287.05f * (temp + 273.15f)); }
+
+// mass flow of an air stream in kg/s (density at the stream's temperature)
+static float mass_flow_kg_s(float flow_m3_h, float temp) {
+  if (!(flow_m3_h > 0.0f))
+    return NAN;
+  return flow_m3_h / 3600.0f * air_density_kg_m3(temp);
+}
+
+// sensible thermal power of an air stream in W
+static float thermal_power_w(float flow_m3_h, float temp_for_density, float delta_t) {
+  return mass_flow_kg_s(flow_m3_h, temp_for_density) * 1005.0f * delta_t;
 }
 
 // Supply-side recovery ratio in %, NAN when the extract/outdoor difference is
@@ -188,6 +206,28 @@ void ZehnderComfoAirQ::register_computed_sensor(ComputedSensor kind, sensor::Sen
       this->add_request_id(PDO_EXTRACT_AIR_HUMIDITY);
       this->add_request_id(PDO_OUTDOOR_AIR_HUMIDITY);
       this->add_request_id(PDO_SUPPLY_AIR_HUMIDITY);
+      break;
+    case ComputedSensor::SUPPLY_THERMAL_POWER:
+      this->add_request_id(PDO_SUPPLY_FAN_FLOW);
+      this->add_request_id(PDO_EXTRACT_AIR_TEMP);
+      this->add_request_id(PDO_SUPPLY_AIR_TEMP);
+      break;
+    case ComputedSensor::VENTILATION_HEAT_LOSS:
+      this->add_request_id(PDO_EXHAUST_FAN_FLOW);
+      this->add_request_id(PDO_EXHAUST_AIR_TEMP);
+      this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
+      break;
+    case ComputedSensor::LATENT_RECOVERY_POWER:
+      this->add_request_id(PDO_SUPPLY_FAN_FLOW);
+      this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
+      this->add_request_id(PDO_SUPPLY_AIR_TEMP);
+      this->add_request_id(PDO_OUTDOOR_AIR_HUMIDITY);
+      this->add_request_id(PDO_SUPPLY_AIR_HUMIDITY);
+      break;
+    case ComputedSensor::SPECIFIC_FAN_POWER:
+      this->add_request_id(PDO_POWER_CONSUMPTION);
+      this->add_request_id(PDO_EXHAUST_FAN_FLOW);
+      this->add_request_id(PDO_SUPPLY_FAN_FLOW);
       break;
     default:
       break;
@@ -458,6 +498,37 @@ void ZehnderComfoAirQ::update_computed_sensors_() {
                                                       water_content_g_kg(extract_rh, extract_temp),
                                                       0.5f /* g/kg */));
     }
+  }
+
+  const float supply_flow = this->get_last_pdo_value_(PDO_SUPPLY_FAN_FLOW);
+  const float exhaust_flow = this->get_last_pdo_value_(PDO_EXHAUST_FAN_FLOW);
+
+  auto *supply_power = this->computed_sensors_[static_cast<size_t>(ComputedSensor::SUPPLY_THERMAL_POWER)];
+  if (supply_power != nullptr) {
+    supply_power->publish_state(thermal_power_w(supply_flow, supply_temp, supply_temp - extract_temp));
+  }
+
+  auto *heat_loss = this->computed_sensors_[static_cast<size_t>(ComputedSensor::VENTILATION_HEAT_LOSS)];
+  if (heat_loss != nullptr) {
+    heat_loss->publish_state(thermal_power_w(exhaust_flow, exhaust_temp, exhaust_temp - outdoor_temp));
+  }
+
+  auto *latent_power = this->computed_sensors_[static_cast<size_t>(ComputedSensor::LATENT_RECOVERY_POWER)];
+  if (latent_power != nullptr) {
+    const float delta_x_kg_kg =
+        (water_content_g_kg(this->get_last_pdo_value_(PDO_SUPPLY_AIR_HUMIDITY), supply_temp) -
+         water_content_g_kg(this->get_last_pdo_value_(PDO_OUTDOOR_AIR_HUMIDITY), outdoor_temp)) /
+        1000.0f;
+    // evaporation enthalpy of water: 2501 kJ/kg
+    latent_power->publish_state(mass_flow_kg_s(supply_flow, supply_temp) * delta_x_kg_kg * 2.501e6f);
+  }
+
+  auto *specific_fan_power = this->computed_sensors_[static_cast<size_t>(ComputedSensor::SPECIFIC_FAN_POWER)];
+  if (specific_fan_power != nullptr) {
+    // electrical power per average air volume flow (Wh/m³), rises when filters clog
+    const float average_flow = (supply_flow + exhaust_flow) / 2.0f;
+    const float power = this->get_last_pdo_value_(PDO_POWER_CONSUMPTION);
+    specific_fan_power->publish_state(average_flow > 0.0f ? power / average_flow : NAN);
   }
 }
 #endif

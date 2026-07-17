@@ -11,3 +11,6 @@ sensor:
     indoor_air_temp_diff: {id: indoor_air_temp_diff, name: "${entity_prefix}Indoor Air Temp Diff"}
     outdoor_air_temp_diff: {id: outdoor_air_temp_diff, name: "${entity_prefix}Outdoor Air Temp Diff"}
     heat_recovery_ratio: {id: heat_recovery_ratio, name: "${entity_prefix}Heat Recovery Ratio"}
+    supply_thermal_power: {id: supply_thermal_power, name: "${entity_prefix}Supply Thermal Power"}
+    ventilation_heat_loss: {id: ventilation_heat_loss, name: "${entity_prefix}Ventilation Heat Loss"}
+    specific_fan_power: {id: specific_fan_power, name: "${entity_prefix}Specific Fan Power"}

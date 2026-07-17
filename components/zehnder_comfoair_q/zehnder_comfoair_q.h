@@ -61,6 +61,10 @@ enum class ComputedSensor : uint8_t {
   HEAT_RECOVERY_RATIO,
   ENTHALPY_RECOVERY_RATIO,
   HUMIDITY_RECOVERY_RATIO,
+  SUPPLY_THERMAL_POWER,    // W the ventilation adds to (+) or removes from (-) the rooms
+  VENTILATION_HEAT_LOSS,   // W lost to the outside despite the exchanger
+  LATENT_RECOVERY_POWER,   // W recovered as moisture (ERV units)
+  SPECIFIC_FAN_POWER,      // Wh/m³ electrical per air volume, filter health indicator
   COUNT_,
 };
 

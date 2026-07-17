@@ -9,3 +9,4 @@ sensor:
   - platform: zehnder_comfoair_q
     enthalpy_recovery_ratio: {id: enthalpy_recovery_ratio, name: "${entity_prefix}Enthalpy Recovery Ratio"}
     humidity_recovery_ratio: {id: humidity_recovery_ratio, name: "${entity_prefix}Humidity Recovery Ratio"}
+    latent_recovery_power: {id: latent_recovery_power, name: "${entity_prefix}Latent Recovery Power"}

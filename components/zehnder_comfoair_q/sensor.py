@@ -243,6 +243,15 @@ def _recovery_ratio_schema():
     )
 
 
+def _thermal_power_schema():
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_WATT,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+
+
 # key -> (ComputedSensor kind, schema); derived from other PDO values, updated every 60s
 COMPUTED_SENSORS = {
     "indoor_air_temp_diff": (
@@ -265,6 +274,31 @@ COMPUTED_SENSORS = {
     "humidity_recovery_ratio": (
         ComputedSensor.HUMIDITY_RECOVERY_RATIO,
         _recovery_ratio_schema(),
+    ),
+    # thermal power the ventilation adds to (+) or removes from (-) the rooms
+    "supply_thermal_power": (
+        ComputedSensor.SUPPLY_THERMAL_POWER,
+        _thermal_power_schema(),
+    ),
+    # heat lost to the outside despite the exchanger
+    "ventilation_heat_loss": (
+        ComputedSensor.VENTILATION_HEAT_LOSS,
+        _thermal_power_schema(),
+    ),
+    # power recovered as moisture; only meaningful on ERV units
+    "latent_recovery_power": (
+        ComputedSensor.LATENT_RECOVERY_POWER,
+        _thermal_power_schema(),
+    ),
+    # electrical power per air volume; rises when the filters clog
+    "specific_fan_power": (
+        ComputedSensor.SPECIFIC_FAN_POWER,
+        sensor.sensor_schema(
+            unit_of_measurement="Wh/m³",
+            accuracy_decimals=2,
+            state_class=STATE_CLASS_MEASUREMENT,
+            icon="mdi:air-filter",
+        ),
     ),
 }
 
