@@ -17,6 +17,7 @@ static constexpr uint32_t PDO_CAN_ID_MASK = 0b11111000000000011111111000000;
 static constexpr uint32_t PDO_CAN_ID_MATCH = 0b00000000000000000000001000000;
 
 // PDO ids used by the computed sensors
+static constexpr uint16_t PDO_BYPASS_STATE = 227;
 static constexpr uint16_t PDO_EXHAUST_FAN_FLOW = 119;
 static constexpr uint16_t PDO_SUPPLY_FAN_FLOW = 120;
 static constexpr uint16_t PDO_POWER_CONSUMPTION = 128;
@@ -56,9 +57,8 @@ static float thermal_power_w(float flow_m3_h, float temp_for_density, float delt
 }
 
 // Supply-side recovery ratio in %, NAN when the extract/outdoor difference is
-// too small for a meaningful result. Deliberately not clamped (fan waste heat
-// can push it slightly above 100%) and not gated on the bypass: with an open
-// bypass the ratio correctly drops towards 0 — nothing is being recovered.
+// too small for a meaningful result. Deliberately not clamped — fan waste heat
+// can push it slightly above 100%.
 static float recovery_ratio(float supply, float outdoor, float extract, float min_denominator) {
   const float denominator = extract - outdoor;
   if (std::abs(denominator) < min_denominator)
@@ -194,12 +194,14 @@ void ZehnderComfoAirQ::register_computed_sensor(ComputedSensor kind, sensor::Sen
       this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
       break;
     case ComputedSensor::HEAT_RECOVERY_RATIO:
+      this->add_request_id(PDO_BYPASS_STATE);
       this->add_request_id(PDO_EXTRACT_AIR_TEMP);
       this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
       this->add_request_id(PDO_SUPPLY_AIR_TEMP);
       break;
     case ComputedSensor::ENTHALPY_RECOVERY_RATIO:
     case ComputedSensor::HUMIDITY_RECOVERY_RATIO:
+      this->add_request_id(PDO_BYPASS_STATE);
       this->add_request_id(PDO_EXTRACT_AIR_TEMP);
       this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
       this->add_request_id(PDO_SUPPLY_AIR_TEMP);
@@ -475,30 +477,36 @@ void ZehnderComfoAirQ::update_computed_sensors_() {
   if (outdoor_diff != nullptr)
     outdoor_diff->publish_state(exhaust_temp - outdoor_temp);
 
-  auto *heat_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HEAT_RECOVERY_RATIO)];
-  if (heat_recovery != nullptr) {
-    heat_recovery->publish_state(recovery_ratio(supply_temp, outdoor_temp, extract_temp, 2.0f /* K */));
-  }
+  // The recovery ratios describe the exchanger itself, not the weather: they
+  // are only (re)measured when the bypass is fully closed and the differences
+  // are large enough — otherwise the last measured value simply stays
+  // published instead of flipping to unknown for weeks of mild weather.
+  const bool exchanger_measurable = this->get_last_pdo_value_(PDO_BYPASS_STATE) == 0.0f;
+  const auto publish_ratio = [](sensor::Sensor *sens, float ratio) {
+    if (sens != nullptr && !std::isnan(ratio))
+      sens->publish_state(ratio);
+  };
 
+  auto *heat_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HEAT_RECOVERY_RATIO)];
   auto *enthalpy_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::ENTHALPY_RECOVERY_RATIO)];
   auto *humidity_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HUMIDITY_RECOVERY_RATIO)];
-  if (enthalpy_recovery != nullptr || humidity_recovery != nullptr) {
-    const float supply_rh = this->get_last_pdo_value_(PDO_SUPPLY_AIR_HUMIDITY);
-    const float outdoor_rh = this->get_last_pdo_value_(PDO_OUTDOOR_AIR_HUMIDITY);
-    const float extract_rh = this->get_last_pdo_value_(PDO_EXTRACT_AIR_HUMIDITY);
+  if (exchanger_measurable) {
+    publish_ratio(heat_recovery, recovery_ratio(supply_temp, outdoor_temp, extract_temp, 2.0f /* K */));
 
-    if (enthalpy_recovery != nullptr) {
-      enthalpy_recovery->publish_state(recovery_ratio(enthalpy_kj_kg(supply_rh, supply_temp),
-                                                      enthalpy_kj_kg(outdoor_rh, outdoor_temp),
-                                                      enthalpy_kj_kg(extract_rh, extract_temp), 2.0f /* kJ/kg */));
-    }
-    if (humidity_recovery != nullptr) {
+    if (enthalpy_recovery != nullptr || humidity_recovery != nullptr) {
+      const float supply_rh = this->get_last_pdo_value_(PDO_SUPPLY_AIR_HUMIDITY);
+      const float outdoor_rh = this->get_last_pdo_value_(PDO_OUTDOOR_AIR_HUMIDITY);
+      const float extract_rh = this->get_last_pdo_value_(PDO_EXTRACT_AIR_HUMIDITY);
+
+      publish_ratio(enthalpy_recovery,
+                    recovery_ratio(enthalpy_kj_kg(supply_rh, supply_temp), enthalpy_kj_kg(outdoor_rh, outdoor_temp),
+                                   enthalpy_kj_kg(extract_rh, extract_temp), 2.0f /* kJ/kg */));
       // 1 g/kg minimum: the unit reports humidity in whole percent (~0.15 g/kg
       // resolution at 20°C), below that the ratio is quantization noise
-      humidity_recovery->publish_state(recovery_ratio(water_content_g_kg(supply_rh, supply_temp),
-                                                      water_content_g_kg(outdoor_rh, outdoor_temp),
-                                                      water_content_g_kg(extract_rh, extract_temp),
-                                                      1.0f /* g/kg */));
+      publish_ratio(humidity_recovery,
+                    recovery_ratio(water_content_g_kg(supply_rh, supply_temp),
+                                   water_content_g_kg(outdoor_rh, outdoor_temp),
+                                   water_content_g_kg(extract_rh, extract_temp), 1.0f /* g/kg */));
     }
   }
 
