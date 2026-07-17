@@ -22,15 +22,15 @@ void ComfoAirQSelect::control(const std::string &value) {
     // the set and the reads run through the same command queue, in order
     case SelectPurpose::PASSIVE_TEMPERATURE:
       this->parent_->set_temperature_passive(static_cast<OffAutoOn>(*idx));
-      this->parent_->refresh_property_selects();
+      this->parent_->refresh_properties();
       break;
     case SelectPurpose::HUMIDITY_COMFORT:
       this->parent_->set_humidity_comfort(static_cast<OffAutoOn>(*idx));
-      this->parent_->refresh_property_selects();
+      this->parent_->refresh_properties();
       break;
     case SelectPurpose::HUMIDITY_PROTECTION:
       this->parent_->set_humidity_protection(static_cast<OffAutoOn>(*idx));
-      this->parent_->refresh_property_selects();
+      this->parent_->refresh_properties();
       break;
   }
 }

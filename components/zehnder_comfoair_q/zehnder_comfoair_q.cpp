@@ -96,11 +96,9 @@ void ZehnderComfoAirQ::setup() {
   }
 #endif
 
-#ifdef USE_SELECT
-  if (!this->property_selects_.empty() && this->property_poll_interval_ > 0) {
-    this->set_interval(this->property_poll_interval_, [this]() { this->refresh_property_selects(); });
+  if (this->has_property_entities_() && this->property_poll_interval_ > 0) {
+    this->set_interval(this->property_poll_interval_, [this]() { this->refresh_properties(); });
   }
-#endif
 
   // do a first request of all PDOs some time after starting (helpful for long intervals)
   this->set_timeout(10 * 1000, [this]() { this->update(); });
@@ -109,9 +107,7 @@ void ZehnderComfoAirQ::setup() {
 void ZehnderComfoAirQ::update() {
   if (!this->request_ids_.empty())
     this->request_all_pdos();
-#ifdef USE_SELECT
-  this->refresh_property_selects();
-#endif
+  this->refresh_properties();
 }
 
 void ZehnderComfoAirQ::dump_config() {
@@ -194,8 +190,28 @@ void ZehnderComfoAirQ::register_property_select(uint8_t unit_id, uint8_t subunit
                                                 select::Select *sel) {
   this->property_selects_.push_back({unit_id, subunit_id, property_id, sel});
 }
+#endif
 
-void ZehnderComfoAirQ::refresh_property_selects() {
+#ifdef USE_NUMBER
+void ZehnderComfoAirQ::register_property_number(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id,
+                                                number::Number *num, float scale) {
+  this->property_numbers_.push_back({unit_id, subunit_id, property_id, num, scale});
+}
+#endif
+
+bool ZehnderComfoAirQ::has_property_entities_() const {
+  bool any = false;
+#ifdef USE_SELECT
+  any |= !this->property_selects_.empty();
+#endif
+#ifdef USE_NUMBER
+  any |= !this->property_numbers_.empty();
+#endif
+  return any;
+}
+
+void ZehnderComfoAirQ::refresh_properties() {
+#ifdef USE_SELECT
   for (const auto &binding : this->property_selects_) {
     auto *sel = binding.select;
     this->read_property(binding.unit_id, binding.subunit_id, binding.property_id,
@@ -212,8 +228,28 @@ void ZehnderComfoAirQ::refresh_property_selects() {
                           sel->publish_state((size_t) data[0]);
                         });
   }
-}
 #endif
+#ifdef USE_NUMBER
+  for (const auto &binding : this->property_numbers_) {
+    auto *num = binding.number;
+    const float scale = binding.scale;
+    this->read_property(binding.unit_id, binding.subunit_id, binding.property_id,
+                        [num, scale](bool ok, const std::vector<uint8_t> &data) {
+                          if (!ok) {
+                            ESP_LOGW(TAG, "Property read for '%s' failed", num->get_name().c_str());
+                            return;
+                          }
+                          if (data.size() != 2) {
+                            ESP_LOGW(TAG, "Unexpected property value for '%s': %s (please report)",
+                                     num->get_name().c_str(), format_hex_pretty(data).c_str());
+                            return;
+                          }
+                          const auto raw = (int16_t) ((uint16_t) data[0] | ((uint16_t) data[1] << 8));
+                          num->publish_state(raw * scale);
+                        });
+  }
+#endif
+}
 
 #ifdef USE_SWITCH
 void ZehnderComfoAirQ::register_switch(uint16_t pdo_id, switch_::Switch *sw) {
@@ -529,6 +565,12 @@ void ZehnderComfoAirQ::send_command_set_timer(bool enable, uint8_t subunit_id, u
 void ZehnderComfoAirQ::send_command_set_property(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id,
                                                  uint8_t property_value) {
   this->send_command({0x03, unit_id, subunit_id, property_id, property_value});
+}
+
+void ZehnderComfoAirQ::send_command_set_property16(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id,
+                                                   int16_t property_value) {
+  this->send_command({0x03, unit_id, subunit_id, property_id, (uint8_t) property_value,
+                      (uint8_t) (((uint16_t) property_value) >> 8)});
 }
 
 void ZehnderComfoAirQ::send_command(const std::vector<uint8_t> &command, rmi_callback_t callback) {

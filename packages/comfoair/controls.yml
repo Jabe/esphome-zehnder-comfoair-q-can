@@ -17,6 +17,13 @@ switch:
   - platform: zehnder_comfoair_q
     manual_mode: {id: manual_mode, name: "${entity_prefix}Manual Mode"}
 
+# temperature profile target temperatures (RMI properties, read back from the unit)
+number:
+  - platform: zehnder_comfoair_q
+    profile_target_warm: {id: profile_target_warm, name: "${entity_prefix}Profile Target Warm"}
+    profile_target_normal: {id: profile_target_normal, name: "${entity_prefix}Profile Target Normal"}
+    profile_target_cool: {id: profile_target_cool, name: "${entity_prefix}Profile Target Cool"}
+
 button:
   - platform: zehnder_comfoair_q
     boost_15min: {id: boost_15min, name: "${entity_prefix}Boost 15 Min."}

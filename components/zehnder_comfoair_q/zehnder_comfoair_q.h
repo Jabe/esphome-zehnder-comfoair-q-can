@@ -20,6 +20,9 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
 
 #include <deque>
 #include <functional>
@@ -85,12 +88,18 @@ class ZehnderComfoAirQ : public PollingComponent {
 #ifdef USE_SELECT
   // The select's option order must match the PDO's value range (0-based).
   void register_select(uint16_t pdo_id, select::Select *sel);
-  // Select backed by an RMI property (no state PDO); its state is read back
-  // from the unit on boot, on every request cycle and after each set command.
+  // Select backed by a UINT8 RMI property (no state PDO); its state is read back
+  // from the unit on boot, per poll interval and after each set command.
   // The option order must match the property's value range (0-based).
   void register_property_select(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, select::Select *sel);
-  void refresh_property_selects();
 #endif
+#ifdef USE_NUMBER
+  // Number backed by an INT16 RMI property, value = raw * scale.
+  void register_property_number(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, number::Number *num,
+                                float scale);
+#endif
+  // Read back all registered RMI property entities (selects and numbers).
+  void refresh_properties();
 #ifdef USE_SWITCH
   void register_switch(uint16_t pdo_id, switch_::Switch *sw);
 #endif
@@ -125,6 +134,7 @@ class ZehnderComfoAirQ : public PollingComponent {
   void send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id, uint8_t property_value = 0x00,
                               uint32_t duration_secs = 1 /* constant for timers with pre-defined durations */);
   void send_command_set_property(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, uint8_t property_value);
+  void send_command_set_property16(uint8_t unit_id, uint8_t subunit_id, uint8_t property_id, int16_t property_value);
 
   // Commands are queued and sent one at a time; the unit's response (matched by
   // sequence number) completes a command and triggers the callback (if any).
@@ -217,6 +227,17 @@ class ZehnderComfoAirQ : public PollingComponent {
   };
   std::vector<PropertySelect> property_selects_{};
 #endif
+#ifdef USE_NUMBER
+  struct PropertyNumber {
+    uint8_t unit_id;
+    uint8_t subunit_id;
+    uint8_t property_id;
+    number::Number *number;
+    float scale;
+  };
+  std::vector<PropertyNumber> property_numbers_{};
+#endif
+  bool has_property_entities_() const;
   uint32_t property_poll_interval_{60 * 1000};
 
   void send_can_message_(uint32_t can_id, bool remote_transmission_request, const std::vector<uint8_t> &data = {});
