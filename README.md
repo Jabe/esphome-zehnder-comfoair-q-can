@@ -3,7 +3,7 @@
 ESPHome component for Zehnder ComfoAir Q ventilation units (Q350/Q450/Q600) via CAN bus.
 
 All PDO decoding, value scaling, text mappings and commands live inside the component; entities are
-configured declaratively through `sensor`/`binary_sensor`/`text_sensor`/`select`/`switch`/`button` platforms. The
+configured declaratively through `sensor`/`binary_sensor`/`text_sensor`/`select`/`switch`/`button`/`number` platforms. The
 component automatically requests exactly the PDOs needed for the configured entities.
 
 ## Usage
@@ -20,12 +20,12 @@ api:
     key: !secret api_encryption_key
 
 packages:
-  base: github://Jabe/esphome-zehnder-comfoair-q-can/packages/core/base.yml@v2.1.0
-  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v2.1.0
-  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@v2.1.0
-  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@v2.1.0
-  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@v2.1.0
-  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@v2.1.0
+  base: github://Jabe/esphome-zehnder-comfoair-q-can/packages/core/base.yml@v2.2.0
+  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v2.2.0
+  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@v2.2.0
+  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@v2.2.0
+  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@v2.2.0
+  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@v2.2.0
 ```
 
 Available packages:
@@ -35,7 +35,7 @@ Available packages:
 - `connectivity/ethernet-lan8720.yml` — LAN8720 ethernet (Olimex ESP32-PoE pin defaults)
 - `comfoair/base.yml` — CAN bus + component hub (CAN pins via substitutions)
 - `comfoair/sensors.yml` — all standard sensor/binary_sensor/text_sensor entities
-- `comfoair/computed.yml` — computed sensors (temp diffs, heat recovery ratio)
+- `comfoair/computed.yml` — computed sensors (temp diffs, heat recovery ratio, thermal power, heat loss, specific fan power)
 - `comfoair/erv.yml` — enthalpy/humidity recovery ratios (units with an enthalpy exchanger)
 - `comfoair/controls.yml` — selects/switch with state sync (fan level, bypass, temperature profile, manual mode, ...), fan level timer ("Party Timer") buttons and profile target numbers
 - `comfoair/pre_heater.yml` — pre-heater entities (optional hardware)
@@ -53,8 +53,9 @@ for what you configure. All available entity keys are listed in
 [binary_sensor.py](components/zehnder_comfoair_q/binary_sensor.py),
 [text_sensor.py](components/zehnder_comfoair_q/text_sensor.py),
 [select.py](components/zehnder_comfoair_q/select.py),
-[switch.py](components/zehnder_comfoair_q/switch.py) and
-[button.py](components/zehnder_comfoair_q/button.py) — including pre-heater and GHE (ground
+[switch.py](components/zehnder_comfoair_q/switch.py),
+[button.py](components/zehnder_comfoair_q/button.py) and
+[number.py](components/zehnder_comfoair_q/number.py) — including pre-heater and GHE (ground
 heat exchanger) sensors for units that have them installed.
 
 ## Origin
