@@ -255,8 +255,13 @@ COMPUTED_SENSORS = {
         ComputedSensor.HEAT_RECOVERY_RATIO,
         _recovery_ratio_schema(),
     ),
+    # only meaningful on units with an enthalpy exchanger (ERV)
     "enthalpy_recovery_ratio": (
         ComputedSensor.ENTHALPY_RECOVERY_RATIO,
+        _recovery_ratio_schema(),
+    ),
+    "humidity_recovery_ratio": (
+        ComputedSensor.HUMIDITY_RECOVERY_RATIO,
         _recovery_ratio_schema(),
     ),
 }

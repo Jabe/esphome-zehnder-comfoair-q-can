@@ -4,9 +4,10 @@
 substitutions:
   entity_prefix: "comfoair "
 
+# the enthalpy/humidity recovery ratios live in erv.yml — they are only
+# meaningful on units with an enthalpy exchanger (ERV)
 sensor:
   - platform: zehnder_comfoair_q
     indoor_air_temp_diff: {id: indoor_air_temp_diff, name: "${entity_prefix}Indoor Air Temp Diff"}
     outdoor_air_temp_diff: {id: outdoor_air_temp_diff, name: "${entity_prefix}Outdoor Air Temp Diff"}
     heat_recovery_ratio: {id: heat_recovery_ratio, name: "${entity_prefix}Heat Recovery Ratio"}
-    enthalpy_recovery_ratio: {id: enthalpy_recovery_ratio, name: "${entity_prefix}Enthalpy Recovery Ratio"}

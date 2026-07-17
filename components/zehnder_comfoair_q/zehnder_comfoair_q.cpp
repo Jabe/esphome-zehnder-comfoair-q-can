@@ -25,6 +25,29 @@ static constexpr uint16_t PDO_EXTRACT_AIR_HUMIDITY = 290;
 static constexpr uint16_t PDO_OUTDOOR_AIR_HUMIDITY = 292;
 static constexpr uint16_t PDO_SUPPLY_AIR_HUMIDITY = 294;
 
+// water content of air in g/kg (Magnus formula, standard pressure)
+static float water_content_g_kg(float rh, float temp) {
+  const float pw_hpa = rh / 100.0f * 6.112f * expf((17.67f * temp) / (temp + 243.5f));
+  return 622.0f * pw_hpa / (1013.25f - pw_hpa);
+}
+
+// specific enthalpy of moist air in kJ/kg
+static float enthalpy_kj_kg(float rh, float temp) {
+  const float x_kg_kg = water_content_g_kg(rh, temp) / 1000.0f;
+  return 1.006f * temp + x_kg_kg * (2501.0f + 1.86f * temp);
+}
+
+// Supply-side recovery ratio in %, NAN when the extract/outdoor difference is
+// too small for a meaningful result. Deliberately not clamped (fan waste heat
+// can push it slightly above 100%) and not gated on the bypass: with an open
+// bypass the ratio correctly drops towards 0 — nothing is being recovered.
+static float recovery_ratio(float supply, float outdoor, float extract, float min_denominator) {
+  const float denominator = extract - outdoor;
+  if (std::abs(denominator) < min_denominator)
+    return NAN;
+  return 100.0f * (supply - outdoor) / denominator;
+}
+
 const ZehnderComfoAirQ::PdoMeta *ZehnderComfoAirQ::find_pdo_meta_(uint16_t pdo_id) {
   // {pdo_id, is_unsigned, scale}, sorted by pdo_id
   static constexpr PdoMeta PDO_METAS[] = {
@@ -153,6 +176,7 @@ void ZehnderComfoAirQ::register_computed_sensor(ComputedSensor kind, sensor::Sen
       this->add_request_id(PDO_SUPPLY_AIR_TEMP);
       break;
     case ComputedSensor::ENTHALPY_RECOVERY_RATIO:
+    case ComputedSensor::HUMIDITY_RECOVERY_RATIO:
       this->add_request_id(PDO_EXTRACT_AIR_TEMP);
       this->add_request_id(PDO_OUTDOOR_AIR_TEMP);
       this->add_request_id(PDO_SUPPLY_AIR_TEMP);
@@ -408,22 +432,27 @@ void ZehnderComfoAirQ::update_computed_sensors_() {
 
   auto *heat_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HEAT_RECOVERY_RATIO)];
   if (heat_recovery != nullptr) {
-    heat_recovery->publish_state(
-        std::min(100.0f, std::max(0.0f, 100 * ((supply_temp - outdoor_temp) / (extract_temp - outdoor_temp)))));
+    heat_recovery->publish_state(recovery_ratio(supply_temp, outdoor_temp, extract_temp, 2.0f /* K */));
   }
 
   auto *enthalpy_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::ENTHALPY_RECOVERY_RATIO)];
-  if (enthalpy_recovery != nullptr) {
-    auto abs_humidity = [](float rh, float temp) -> float {
-      return (6.112 * exp((17.67 * temp) / (temp + 243.5)) * rh * 2.1674) / (temp + 273.15);
-    };
+  auto *humidity_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HUMIDITY_RECOVERY_RATIO)];
+  if (enthalpy_recovery != nullptr || humidity_recovery != nullptr) {
+    const float supply_rh = this->get_last_pdo_value_(PDO_SUPPLY_AIR_HUMIDITY);
+    const float outdoor_rh = this->get_last_pdo_value_(PDO_OUTDOOR_AIR_HUMIDITY);
+    const float extract_rh = this->get_last_pdo_value_(PDO_EXTRACT_AIR_HUMIDITY);
 
-    const float supply_ah = abs_humidity(this->get_last_pdo_value_(PDO_SUPPLY_AIR_HUMIDITY), supply_temp);
-    const float outdoor_ah = abs_humidity(this->get_last_pdo_value_(PDO_OUTDOOR_AIR_HUMIDITY), outdoor_temp);
-    const float extract_ah = abs_humidity(this->get_last_pdo_value_(PDO_EXTRACT_AIR_HUMIDITY), extract_temp);
-
-    enthalpy_recovery->publish_state(
-        std::min(100.0f, std::max(0.0f, 100 * ((supply_ah - outdoor_ah) / (extract_ah - outdoor_ah)))));
+    if (enthalpy_recovery != nullptr) {
+      enthalpy_recovery->publish_state(recovery_ratio(enthalpy_kj_kg(supply_rh, supply_temp),
+                                                      enthalpy_kj_kg(outdoor_rh, outdoor_temp),
+                                                      enthalpy_kj_kg(extract_rh, extract_temp), 2.0f /* kJ/kg */));
+    }
+    if (humidity_recovery != nullptr) {
+      humidity_recovery->publish_state(recovery_ratio(water_content_g_kg(supply_rh, supply_temp),
+                                                      water_content_g_kg(outdoor_rh, outdoor_temp),
+                                                      water_content_g_kg(extract_rh, extract_temp),
+                                                      0.5f /* g/kg */));
+    }
   }
 }
 #endif

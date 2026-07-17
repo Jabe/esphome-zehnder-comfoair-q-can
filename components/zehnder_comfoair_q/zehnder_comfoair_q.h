@@ -51,12 +51,16 @@ enum OffAutoOn : uint8_t {
 };
 
 // Sensors derived from other PDO values instead of a PDO of their own,
-// recalculated on a fixed 60s interval.
+// recalculated on a fixed 60s interval. The recovery ratios assume balanced
+// flows, publish NAN while the bypass is open (no exchange happening) or when
+// the denominator difference is too small to be meaningful, and are not
+// clamped — fan waste heat can push them slightly above 100%.
 enum class ComputedSensor : uint8_t {
   INDOOR_AIR_TEMP_DIFF = 0,
   OUTDOOR_AIR_TEMP_DIFF,
   HEAT_RECOVERY_RATIO,
   ENTHALPY_RECOVERY_RATIO,
+  HUMIDITY_RECOVERY_RATIO,
   COUNT_,
 };
 

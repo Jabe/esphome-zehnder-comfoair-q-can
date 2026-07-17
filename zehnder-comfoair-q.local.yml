@@ -21,6 +21,7 @@ packages:
   computed: !include packages/comfoair/computed.yml
   controls: !include packages/comfoair/controls.yml
   # Only for units with the respective hardware installed:
+  # erv: !include packages/comfoair/erv.yml  # units with an enthalpy exchanger
   # pre_heater: !include packages/comfoair/pre_heater.yml
   # ghe: !include packages/comfoair/ghe.yml
 

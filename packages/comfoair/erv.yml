@@ -1,0 +1,11 @@
+# Moisture-related recovery ratios — only meaningful on units with an
+# enthalpy exchanger (ERV); on a standard exchanger they hover around 0.
+# Computed inside the component (updated every 60s), source PDOs are
+# requested automatically.
+substitutions:
+  entity_prefix: "comfoair "
+
+sensor:
+  - platform: zehnder_comfoair_q
+    enthalpy_recovery_ratio: {id: enthalpy_recovery_ratio, name: "${entity_prefix}Enthalpy Recovery Ratio"}
+    humidity_recovery_ratio: {id: humidity_recovery_ratio, name: "${entity_prefix}Humidity Recovery Ratio"}
