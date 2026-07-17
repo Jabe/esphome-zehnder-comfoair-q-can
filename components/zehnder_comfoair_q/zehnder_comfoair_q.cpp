@@ -493,10 +493,12 @@ void ZehnderComfoAirQ::update_computed_sensors_() {
                                                       enthalpy_kj_kg(extract_rh, extract_temp), 2.0f /* kJ/kg */));
     }
     if (humidity_recovery != nullptr) {
+      // 1 g/kg minimum: the unit reports humidity in whole percent (~0.15 g/kg
+      // resolution at 20°C), below that the ratio is quantization noise
       humidity_recovery->publish_state(recovery_ratio(water_content_g_kg(supply_rh, supply_temp),
                                                       water_content_g_kg(outdoor_rh, outdoor_temp),
                                                       water_content_g_kg(extract_rh, extract_temp),
-                                                      0.5f /* g/kg */));
+                                                      1.0f /* g/kg */));
     }
   }
 
