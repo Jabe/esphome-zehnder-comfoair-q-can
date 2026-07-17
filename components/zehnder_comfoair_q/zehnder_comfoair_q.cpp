@@ -56,21 +56,6 @@ static float thermal_power_w(float flow_m3_h, float temp_for_density, float delt
   return mass_flow_kg_s(flow_m3_h, temp_for_density) * 1005.0f * delta_t;
 }
 
-// Supply-side recovery ratio in %, NAN when the extract/outdoor difference is
-// too small for a meaningful result. Deliberately not clamped — fan waste heat
-// can push it slightly above 100%.
-static float recovery_ratio(float supply, float outdoor, float extract, float min_denominator) {
-  const float denominator = extract - outdoor;
-  if (std::abs(denominator) < min_denominator)
-    return NAN;
-  const float ratio = 100.0f * (supply - outdoor) / denominator;
-  // plausibility window: values far outside 0..100% are measurement artifacts
-  // (sensor placement, transients), not physics
-  if (ratio < -10.0f || ratio > 125.0f)
-    return NAN;
-  return ratio;
-}
-
 const ZehnderComfoAirQ::PdoMeta *ZehnderComfoAirQ::find_pdo_meta_(uint16_t pdo_id) {
   // {pdo_id, is_unsigned, scale}, sorted by pdo_id
   static constexpr PdoMeta PDO_METAS[] = {
@@ -503,38 +488,36 @@ void ZehnderComfoAirQ::update_computed_sensors_() {
   if (outdoor_diff != nullptr)
     outdoor_diff->publish_state(exhaust_temp - outdoor_temp);
 
-  // The recovery ratios describe the exchanger itself, not the weather: they
-  // are only (re)measured when the bypass is fully closed and the differences
-  // are large enough — otherwise the last measured value simply stays
-  // published instead of flipping to unknown for weeks of mild weather.
+  // The recovery ratios describe the exchanger itself, not the weather.
+  // While the bypass is fully closed, every sample feeds numerator and
+  // denominator EMAs: small differences contribute with proportionally small
+  // weight instead of being discarded, so mild weather accumulates into a
+  // usable (energy-weighted) measurement over hours. The quotient is
+  // published once the averaged difference is large enough; outside
+  // measurable conditions the last value simply stays.
   const bool exchanger_measurable = this->get_last_pdo_value_(PDO_BYPASS_STATE) == 0.0f;
-  const auto publish_ratio = [](sensor::Sensor *sens, float ratio) {
-    if (sens != nullptr && !std::isnan(ratio))
-      sens->publish_state(ratio);
-  };
-
-  auto *heat_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HEAT_RECOVERY_RATIO)];
-  auto *enthalpy_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::ENTHALPY_RECOVERY_RATIO)];
-  auto *humidity_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HUMIDITY_RECOVERY_RATIO)];
   if (exchanger_measurable) {
-    publish_ratio(heat_recovery, recovery_ratio(supply_temp, outdoor_temp, extract_temp, 2.0f /* K */));
+    this->accumulate_ratio_ema_(this->heat_ratio_ema_, supply_temp, outdoor_temp, extract_temp);
 
+    auto *enthalpy_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::ENTHALPY_RECOVERY_RATIO)];
+    auto *humidity_recovery = this->computed_sensors_[static_cast<size_t>(ComputedSensor::HUMIDITY_RECOVERY_RATIO)];
     if (enthalpy_recovery != nullptr || humidity_recovery != nullptr) {
       const float supply_rh = this->get_last_pdo_value_(PDO_SUPPLY_AIR_HUMIDITY);
       const float outdoor_rh = this->get_last_pdo_value_(PDO_OUTDOOR_AIR_HUMIDITY);
       const float extract_rh = this->get_last_pdo_value_(PDO_EXTRACT_AIR_HUMIDITY);
 
-      publish_ratio(enthalpy_recovery,
-                    recovery_ratio(enthalpy_kj_kg(supply_rh, supply_temp), enthalpy_kj_kg(outdoor_rh, outdoor_temp),
-                                   enthalpy_kj_kg(extract_rh, extract_temp), 2.0f /* kJ/kg */));
-      // 1 g/kg minimum: the unit reports humidity in whole percent (~0.15 g/kg
-      // resolution at 20°C), below that the ratio is quantization noise
-      publish_ratio(humidity_recovery,
-                    recovery_ratio(water_content_g_kg(supply_rh, supply_temp),
-                                   water_content_g_kg(outdoor_rh, outdoor_temp),
-                                   water_content_g_kg(extract_rh, extract_temp), 1.0f /* g/kg */));
+      this->accumulate_ratio_ema_(this->enthalpy_ratio_ema_, enthalpy_kj_kg(supply_rh, supply_temp),
+                                  enthalpy_kj_kg(outdoor_rh, outdoor_temp), enthalpy_kj_kg(extract_rh, extract_temp));
+      this->accumulate_ratio_ema_(this->humidity_ratio_ema_, water_content_g_kg(supply_rh, supply_temp),
+                                  water_content_g_kg(outdoor_rh, outdoor_temp),
+                                  water_content_g_kg(extract_rh, extract_temp));
     }
   }
+  // gates: ~1/3 of the old per-sample thresholds — averaging suppresses the
+  // noise, only systematic sensor offsets remain as the error floor
+  this->publish_ratio_ema_(ComputedSensor::HEAT_RECOVERY_RATIO, this->heat_ratio_ema_, 0.7f /* K */);
+  this->publish_ratio_ema_(ComputedSensor::ENTHALPY_RECOVERY_RATIO, this->enthalpy_ratio_ema_, 0.7f /* kJ/kg */);
+  this->publish_ratio_ema_(ComputedSensor::HUMIDITY_RECOVERY_RATIO, this->humidity_ratio_ema_, 0.35f /* g/kg */);
 
   const float supply_flow = this->get_last_pdo_value_(PDO_SUPPLY_FAN_FLOW);
   const float exhaust_flow = this->get_last_pdo_value_(PDO_EXHAUST_FAN_FLOW);
@@ -566,6 +549,46 @@ void ZehnderComfoAirQ::update_computed_sensors_() {
     const float power = this->get_last_pdo_value_(PDO_POWER_CONSUMPTION);
     specific_fan_power->publish_state(average_flow > 0.0f ? power / average_flow : NAN);
   }
+}
+
+// ~3h time constant at the fixed 60s sample tick
+static constexpr float RATIO_EMA_ALPHA = 60.0f / (3.0f * 3600.0f);
+
+void ZehnderComfoAirQ::accumulate_ratio_ema_(RatioEma &ema, float supply, float outdoor, float extract) {
+  float num = supply - outdoor;
+  float den = extract - outdoor;
+  if (std::isnan(num) || std::isnan(den))
+    return;
+  // normalize the sign so samples with outdoor above and below indoor
+  // reinforce the averages instead of cancelling each other out
+  if (den < 0) {
+    num = -num;
+    den = -den;
+  }
+  ema.num += RATIO_EMA_ALPHA * (num - ema.num);
+  ema.den += RATIO_EMA_ALPHA * (den - ema.den);
+  ema.weight += RATIO_EMA_ALPHA * (1.0f - ema.weight);
+}
+
+void ZehnderComfoAirQ::publish_ratio_ema_(ComputedSensor kind, RatioEma &ema, float min_avg_denominator) {
+  auto *sens = this->computed_sensors_[static_cast<size_t>(kind)];
+  if (sens == nullptr || ema.weight <= 0.0f)
+    return;
+  // den/weight is the bias-corrected average difference (the zero-initialized
+  // EMAs start too small; the correction cancels out in the quotient itself)
+  if (ema.den / ema.weight < min_avg_denominator)
+    return;
+  const float ratio = 100.0f * ema.num / ema.den;
+  // plausibility window: values far outside 0..100% are measurement artifacts
+  // (sensor placement, transients), not physics — deliberately not clamped,
+  // fan waste heat can push the true value slightly above 100%
+  if (ratio < -10.0f || ratio > 125.0f)
+    return;
+  // the quotient creeps a little every tick; sub-½% changes are just noise
+  if (!std::isnan(ema.last_published) && std::abs(ratio - ema.last_published) < 0.5f)
+    return;
+  ema.last_published = ratio;
+  sens->publish_state(ratio);
 }
 #endif
 

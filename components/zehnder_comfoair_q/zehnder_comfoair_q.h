@@ -53,9 +53,11 @@ enum OffAutoOn : uint8_t {
 // Sensors derived from other PDO values instead of a PDO of their own,
 // recalculated on a fixed 60s interval. The recovery ratios describe the
 // exchanger itself (balanced flows assumed, unclamped — fan waste heat can
-// push them slightly above 100%): they are only re-measured while the bypass
-// is fully closed and the denominator differences are large enough; outside
-// of those conditions the last measured value stays published.
+// push them slightly above 100%): numerator and denominator are accumulated
+// separately while the bypass is fully closed, so small differences add up
+// to a usable measurement instead of being discarded; the quotient is
+// published once enough signal has built up and simply keeps its last value
+// outside measurable conditions.
 enum class ComputedSensor : uint8_t {
   INDOOR_AIR_TEMP_DIFF = 0,
   OUTDOOR_AIR_TEMP_DIFF,
@@ -219,6 +221,18 @@ class ZehnderComfoAirQ : public PollingComponent {
   std::map<uint16_t, float> last_pdo_values_{};
 #ifdef USE_SENSOR
   sensor::Sensor *computed_sensors_[static_cast<size_t>(ComputedSensor::COUNT_)]{};
+
+  // recovery ratio state: numerator/denominator EMAs plus the accumulated
+  // sample weight for bias correction of the publish gate
+  struct RatioEma {
+    float num{0}, den{0}, weight{0};
+    float last_published{NAN};
+  };
+  RatioEma heat_ratio_ema_{};
+  RatioEma enthalpy_ratio_ema_{};
+  RatioEma humidity_ratio_ema_{};
+  void accumulate_ratio_ema_(RatioEma &ema, float supply, float outdoor, float extract);
+  void publish_ratio_ema_(ComputedSensor kind, RatioEma &ema, float min_avg_denominator);
 #endif
 
   uint32_t get_command_can_id_(uint8_t src_node_id, uint8_t dst_node_id, uint8_t unknown_counter,
