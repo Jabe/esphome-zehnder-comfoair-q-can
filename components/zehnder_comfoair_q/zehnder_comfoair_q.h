@@ -133,6 +133,14 @@ class ZehnderComfoAirQ : public PollingComponent {
 
   // routed through set_level_timer so a running emulated timer is cleaned up
   void set_boost(uint32_t duration_secs) { set_level_timer(3, duration_secs); }
+  // Native away mode (operating mode 11, the display's "absence" feature):
+  // runs the away preset flow (fan level 0 setpoint) for the given duration,
+  // humidity protection stays active. 0 disables it, 0xffffffff = permanent.
+  void set_away(uint32_t duration_secs) {
+    // a new mode decision replaces a pending emulated level timer
+    cancel_emulated_level_timer_();
+    send_command_set_timer(duration_secs > 0, 0x01, 0x0B, 0x00, duration_secs);
+  }
   void set_manual_mode(bool enable) {
     // a pending emulated level timer is obsolete either way and must not
     // fire its auto-revert into the newly chosen mode later

@@ -30,6 +30,19 @@ zehnder_comfoair_q:
 # -1 = permanent: native boost timer for level 3, manual mode + level otherwise.
 api:
   actions:
+    # Native away mode (the display's "absence" feature): runs the away
+    # preset flow, humidity protection stays active. duration_seconds > 0
+    # starts/extends the timer (re-send to extend, safe-by-default),
+    # 0 ends it, -1 = permanent.
+    - action: set_away
+      variables:
+        duration_seconds: int
+      then:
+        - lambda: |-
+            if (duration_seconds < 0)
+              id(comfoair)->set_away(0xffffffff);
+            else
+              id(comfoair)->set_away((uint32_t) duration_seconds);
     - action: set_fan_level
       variables:
         level: int
