@@ -7,14 +7,19 @@
 
 namespace esphome::zehnder_comfoair_q {
 
-// Boost timer button; duration 0 switches boost off.
-class ComfoAirQBoostButton final : public button::Button, public Parented<ZehnderComfoAirQ> {
+// Runs the unit's fan level timer ("Party Timer" on the display): fan level
+// for an explicit duration. Duration 0 cancels a running timer.
+class ComfoAirQFanLevelTimerButton final : public button::Button, public Parented<ZehnderComfoAirQ> {
  public:
-  void set_duration(uint32_t duration_secs) { this->duration_secs_ = duration_secs; }
+  void set_timer(uint8_t level, uint32_t duration_secs) {
+    this->level_ = level;
+    this->duration_secs_ = duration_secs;
+  }
 
  protected:
-  void press_action() override { this->parent_->set_boost(this->duration_secs_); }
+  void press_action() override { this->parent_->set_level_timer(this->level_, this->duration_secs_); }
 
+  uint8_t level_{3};
   uint32_t duration_secs_{0};
 };
 

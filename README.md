@@ -37,7 +37,7 @@ Available packages:
 - `comfoair/sensors.yml` — all standard sensor/binary_sensor/text_sensor entities
 - `comfoair/computed.yml` — computed sensors (temp diffs, heat recovery ratio)
 - `comfoair/erv.yml` — enthalpy/humidity recovery ratios (units with an enthalpy exchanger)
-- `comfoair/controls.yml` — selects/switch with state sync (fan level, bypass, temperature profile, manual mode, ...) and boost buttons
+- `comfoair/controls.yml` — selects/switch with state sync (fan level, bypass, temperature profile, manual mode, ...), fan level timer ("Party Timer") buttons and profile target numbers
 - `comfoair/pre_heater.yml` — pre-heater entities (optional hardware)
 - `comfoair/ghe.yml` — ComfoFond/ground-heat-exchanger entities (optional hardware)
 

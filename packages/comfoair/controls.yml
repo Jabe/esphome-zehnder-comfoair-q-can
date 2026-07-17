@@ -3,6 +3,13 @@
 # properties without a state PDO — they publish optimistically after sending.
 substitutions:
   entity_prefix: "comfoair "
+  # fan level timer buttons ("Party Timer"); override via vars without forking
+  boost_1_name: "Boost 15 Min."
+  boost_1_level: "3"
+  boost_1_duration: 15min
+  boost_2_name: "Boost 30 Min."
+  boost_2_level: "3"
+  boost_2_duration: 30min
 
 select:
   - platform: zehnder_comfoair_q
@@ -26,6 +33,15 @@ number:
 
 button:
   - platform: zehnder_comfoair_q
-    boost_15min: {id: boost_15min, name: "${entity_prefix}Boost 15 Min."}
-    boost_30min: {id: boost_30min, name: "${entity_prefix}Boost 30 Min."}
-    boost_off: {id: boost_off, name: "${entity_prefix}Boost off"}
+    fan_level_timers:
+      - id: boost_1
+        name: "${entity_prefix}${boost_1_name}"
+        level: ${boost_1_level}
+        duration: ${boost_1_duration}
+      - id: boost_2
+        name: "${entity_prefix}${boost_2_name}"
+        level: ${boost_2_level}
+        duration: ${boost_2_duration}
+    fan_level_timer_off:
+      id: boost_off
+      name: "${entity_prefix}Boost off"
