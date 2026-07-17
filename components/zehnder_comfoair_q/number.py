@@ -24,6 +24,9 @@ UNIT_TEMPHUMCONTROL = 0x1D
 # key -> (unit, subunit, property, scale, min, max, step)
 # Temperature profile target temperatures (INT16, 0.1 degC), see the
 # TEMPHUMCONTROL unit in the comfoconnect PROTOCOL-RMI docs.
+# Note: in the (default) adaptive temperature profile mode the unit derives
+# its active setpoint from the running mean outdoor temperature — these
+# targets only take direct effect in fixed profile mode.
 NUMBERS = {
     "profile_target_warm": (UNIT_TEMPHUMCONTROL, 0x01, 0x0A, 0.1, 15.0, 28.0, 0.5),
     "profile_target_normal": (UNIT_TEMPHUMCONTROL, 0x01, 0x0B, 0.1, 15.0, 28.0, 0.5),
