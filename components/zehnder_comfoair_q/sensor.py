@@ -193,6 +193,24 @@ PDO_SENSORS = {
     "avoided_cooling_total": (218, _energy_total_schema()),
     "pre_heater_temp_before": (220, _temperature_schema()),
     "post_heater_temp_after": (221, _temperature_schema()),
+    # semantics of 225/226 are not fully confirmed (see PROTOCOL-PDO.md):
+    # 225 looks like a sensor-based ventilation mode, 226 like the fan speed
+    # target modulated by the comfort functions (0-300 scale) — please report
+    "sensor_ventilation_mode": (
+        225,
+        sensor.sensor_schema(
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    ),
+    "fan_speed_modulated": (
+        226,
+        sensor.sensor_schema(
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+            filters=_THROTTLE_FILTERS,
+        ),
+    ),
     "bypass_state": (
         227,
         sensor.sensor_schema(

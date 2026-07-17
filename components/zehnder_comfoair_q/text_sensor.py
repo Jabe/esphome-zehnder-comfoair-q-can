@@ -13,6 +13,9 @@ TEXT_SENSORS = {
     "temperature_profile": 67,
     "next_fan_change_in": 81,
     "next_bypass_change_in": 82,
+    # decoded 64-bit bitset: which comfort functions / constraints currently
+    # steer the ventilation (e.g. "TemperatureComfort, HumidityComfort")
+    "airflow_constraints": 230,
 }
 
 CONFIG_SCHEMA = cv.Schema(

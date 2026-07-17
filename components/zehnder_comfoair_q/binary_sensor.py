@@ -9,6 +9,8 @@ DEPENDENCIES = ["zehnder_comfoair_q"]
 # key -> PDO id
 BINARY_SENSORS = {
     "away_indicator": 16,
+    "heating_season": 210,
+    "cooling_season": 211,
 }
 
 CONFIG_SCHEMA = cv.Schema(

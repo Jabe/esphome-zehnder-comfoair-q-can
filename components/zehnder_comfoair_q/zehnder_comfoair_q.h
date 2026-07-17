@@ -215,6 +215,12 @@ class ZehnderComfoAirQ : public PollingComponent {
   static std::string operating_mode_to_string_(int value);
   static std::string bypass_activation_mode_to_string_(int value);
   static std::string temperature_profile_to_string_(int value);
+  static std::string airflow_constraints_to_string_(uint64_t bits);
+
+  // PDO 230: 64-bit bitset of the airflow constraints / comfort functions
+  // currently steering the ventilation (bypassed around the float pipeline)
+  void handle_airflow_constraints_(uint64_t bits);
+  uint64_t last_airflow_constraint_bits_{0xFFFFFFFFFFFFFFFFULL};
 
   canbus::Canbus *canbus_{nullptr};
 

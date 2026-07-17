@@ -80,6 +80,8 @@ const ZehnderComfoAirQ::PdoMeta *ZehnderComfoAirQ::find_pdo_meta_(uint16_t pdo_i
       {146, true, 1},     // pre heater power consumption since start (kWh)
       {192, false, 1},    // filter replacement remaining (days)
       {209, false, 0.1},  // running mean outdoor temp (°C)
+      {210, true, 1},     // heating season active (bool)
+      {211, true, 1},     // cooling season active (bool)
       {212, false, 0.1},  // profile target temp (°C)
       {213, true, 1e-3},  // avoided heating actual (W -> kW)
       {214, true, 1},     // avoided heating ytd (kWh)
@@ -89,6 +91,8 @@ const ZehnderComfoAirQ::PdoMeta *ZehnderComfoAirQ::find_pdo_meta_(uint16_t pdo_i
       {218, true, 1},     // avoided cooling total (kWh)
       {220, false, 0.1},  // pre heater temp before (°C)
       {221, false, 0.1},  // post heater temp after (°C)
+      {225, true, 1},     // sensor based ventilation mode (semantics unconfirmed)
+      {226, true, 1},     // fan speed modulated by comfort functions (semantics unconfirmed)
       {227, true, 1},     // bypass state (%)
       {274, false, 0.1},  // extract air temp (°C)
       {275, false, 0.1},  // exhaust air temp (°C)
@@ -335,6 +339,20 @@ void ZehnderComfoAirQ::on_can_frame_(uint32_t can_id, bool extended_id, bool rem
     return;
 
   const uint16_t pdo_id = can_id >> 14;
+
+  // PDO 230 is a 64-bit bitset of the active airflow constraints / comfort
+  // functions and must not go through the float pipeline below (a float
+  // mantissa cannot hold the high bits, including the validity flag)
+  if (pdo_id == 230) {
+    if (data.size() == 8) {
+      uint64_t bits = 0;
+      for (size_t i = 0; i < data.size(); i++)
+        bits |= (uint64_t) data[i] << (8 * i);
+      this->handle_airflow_constraints_(bits);
+    }
+    return;
+  }
+
   const auto *meta = find_pdo_meta_(pdo_id);
   if (meta == nullptr)
     return;
@@ -465,6 +483,18 @@ void ZehnderComfoAirQ::handle_pdo_value_(uint16_t pdo_id, float value) {
         break;
     }
   }
+#endif
+}
+
+void ZehnderComfoAirQ::handle_airflow_constraints_(uint64_t bits) {
+  if (bits == this->last_airflow_constraint_bits_)
+    return;
+  this->last_airflow_constraint_bits_ = bits;
+  ESP_LOGD(TAG, "Airflow constraints: 0x%08" PRIx32 "%08" PRIx32, (uint32_t) (bits >> 32), (uint32_t) bits);
+#ifdef USE_TEXT_SENSOR
+  auto it = this->bindings_.find(230);
+  if (it != this->bindings_.end() && it->second.text_sensor != nullptr)
+    it->second.text_sensor->publish_state(airflow_constraints_to_string_(bits));
 #endif
 }
 
@@ -643,6 +673,55 @@ std::string ZehnderComfoAirQ::temperature_profile_to_string_(int value) {
     default:
       return to_string(value);
   }
+}
+
+// Bit mapping taken from aiocomfoconnect's calculate_airflow_constraints;
+// bit 45 is a validity flag. Bits 25-27 are the comfort functions the CD
+// display announces (passive temperature, humidity comfort/protection).
+std::string ZehnderComfoAirQ::airflow_constraints_to_string_(uint64_t bits) {
+  if (!(bits & (1ULL << 45)))
+    return "n/a";
+  static constexpr struct {
+    uint64_t mask;
+    const char *name;
+  } FLAGS[] = {
+      {(1ULL << 2) | (1ULL << 3), "Resistance"},
+      {1ULL << 4, "PreheaterNegative"},
+      {(1ULL << 5) | (1ULL << 7), "NoiseGuard"},
+      {(1ULL << 6) | (1ULL << 8), "ResistanceGuard"},
+      {1ULL << 9, "FrostProtection"},
+      {1ULL << 10, "Bypass"},
+      {1ULL << 12, "AnalogInput1"},
+      {1ULL << 13, "AnalogInput2"},
+      {1ULL << 14, "AnalogInput3"},
+      {1ULL << 15, "AnalogInput4"},
+      {1ULL << 16, "Hood"},
+      {1ULL << 18, "AnalogPreset"},
+      {1ULL << 19, "ComfoCool"},
+      {1ULL << 22, "PreheaterPositive"},
+      {1ULL << 23, "RFSensorFlowPreset"},
+      {1ULL << 24, "RFSensorFlowProportional"},
+      {1ULL << 25, "TemperatureComfort"},
+      {1ULL << 26, "HumidityComfort"},
+      {1ULL << 27, "HumidityProtection"},
+      {1ULL << 47, "CO2ZoneX1"},
+      {1ULL << 48, "CO2ZoneX2"},
+      {1ULL << 49, "CO2ZoneX3"},
+      {1ULL << 50, "CO2ZoneX4"},
+      {1ULL << 51, "CO2ZoneX5"},
+      {1ULL << 52, "CO2ZoneX6"},
+      {1ULL << 53, "CO2ZoneX7"},
+      {1ULL << 54, "CO2ZoneX8"},
+  };
+  std::string out;
+  for (const auto &flag : FLAGS) {
+    if (bits & flag.mask) {
+      if (!out.empty())
+        out += ", ";
+      out += flag.name;
+    }
+  }
+  return out.empty() ? "None" : out;
 }
 
 std::string ZehnderComfoAirQ::seconds_to_human_readable(int seconds) {
