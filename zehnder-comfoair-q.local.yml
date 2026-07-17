@@ -20,6 +20,8 @@ packages:
   sensors: !include packages/comfoair/sensors.yml
   computed: !include packages/comfoair/computed.yml
   controls: !include packages/comfoair/controls.yml
+  # Setup/tuning numbers — typically included once for setup, then removed:
+  # tuning: !include packages/comfoair/tuning.yml
   # Only for units with the respective hardware installed:
   # erv: !include packages/comfoair/erv.yml  # units with an enthalpy exchanger
   # pre_heater: !include packages/comfoair/pre_heater.yml

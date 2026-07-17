@@ -1,0 +1,22 @@
+# Unit setup / tuning numbers (HA config category) — RMI properties, read
+# back from the unit on boot, per poll interval and after each write. The
+# unit persists and clamps these values itself: meant for occasional tuning,
+# not for continuous automation writes.
+substitutions:
+  entity_prefix: "comfoair "
+
+number:
+  - platform: zehnder_comfoair_q
+    # temperature profile targets: only take direct effect in fixed profile
+    # mode — the (default) adaptive mode derives the active setpoint from
+    # the running mean outdoor temperature
+    profile_target_warm: {id: profile_target_warm, name: "${entity_prefix}Profile Target Warm"}
+    profile_target_normal: {id: profile_target_normal, name: "${entity_prefix}Profile Target Normal"}
+    profile_target_cool: {id: profile_target_cool, name: "${entity_prefix}Profile Target Cool"}
+    # fan flow setpoints (m³/h) per level (0 = away; level 3 is also the
+    # boost/"Party Timer" level) — handy for finding the noise sweet spot
+    # from the room being ventilated
+    fan_flow_level_0: {id: fan_flow_level_0, name: "${entity_prefix}Fan Flow Level 0", mode: box}
+    fan_flow_level_1: {id: fan_flow_level_1, name: "${entity_prefix}Fan Flow Level 1", mode: box}
+    fan_flow_level_2: {id: fan_flow_level_2, name: "${entity_prefix}Fan Flow Level 2", mode: box}
+    fan_flow_level_3: {id: fan_flow_level_3, name: "${entity_prefix}Fan Flow Level 3", mode: box}
