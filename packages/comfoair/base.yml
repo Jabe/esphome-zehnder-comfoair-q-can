@@ -21,3 +21,21 @@ logger:
 zehnder_comfoair_q:
   id: comfoair
   property_poll_interval: ${property_poll_interval}
+
+# HA action for automations: unlike the fan level select, this can be re-sent
+# with the same level to restart the unit's override timer (safe-by-default
+# patterns). duration_seconds: 0 = the unit's default duration, -1 = permanent.
+api:
+  actions:
+    - action: set_fan_level
+      variables:
+        level: int
+        duration_seconds: int
+      then:
+        - lambda: |-
+            uint32_t duration = 1;  // the unit's default override duration
+            if (duration_seconds > 0)
+              duration = duration_seconds;
+            else if (duration_seconds < 0)
+              duration = 0xffffffff;  // permanent
+            id(comfoair)->set_level((uint8_t) level, duration);

@@ -116,7 +116,8 @@ class ZehnderComfoAirQ : public PollingComponent {
   void request_pdo(uint16_t pdo_id);
 
   void set_level_float(float state);
-  void set_level(uint8_t level);
+  // duration_secs: 1 = the unit's default override duration, 0xffffffff = permanent
+  void set_level(uint8_t level, uint32_t duration_secs = 1);
 
   void set_boost(uint32_t duration_secs) { send_command_set_timer(duration_secs > 0, 0x01, 0x06, 3, duration_secs); }
   void set_manual_mode(bool enable) {
