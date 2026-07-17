@@ -45,7 +45,12 @@ static float recovery_ratio(float supply, float outdoor, float extract, float mi
   const float denominator = extract - outdoor;
   if (std::abs(denominator) < min_denominator)
     return NAN;
-  return 100.0f * (supply - outdoor) / denominator;
+  const float ratio = 100.0f * (supply - outdoor) / denominator;
+  // plausibility window: values far outside 0..100% are measurement artifacts
+  // (sensor placement, transients), not physics
+  if (ratio < -10.0f || ratio > 125.0f)
+    return NAN;
+  return ratio;
 }
 
 const ZehnderComfoAirQ::PdoMeta *ZehnderComfoAirQ::find_pdo_meta_(uint16_t pdo_id) {
