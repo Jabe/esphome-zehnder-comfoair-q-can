@@ -91,8 +91,6 @@ const ZehnderComfoAirQ::PdoMeta *ZehnderComfoAirQ::find_pdo_meta_(uint16_t pdo_i
       {218, true, 1},     // avoided cooling total (kWh)
       {220, false, 0.1},  // pre heater temp before (°C)
       {221, false, 0.1},  // post heater temp after (°C)
-      {225, true, 1},     // sensor based ventilation mode (semantics unconfirmed)
-      {226, true, 1},     // fan speed modulated by comfort functions (semantics unconfirmed)
       {227, true, 1},     // bypass state (%)
       {274, false, 0.1},  // extract air temp (°C)
       {275, false, 0.1},  // exhaust air temp (°C)

@@ -28,9 +28,6 @@ sensor:
     avoided_cooling_ytd: {id: avoided_cooling_ytd, name: "${entity_prefix}Avoided Cooling Ytd"}
     avoided_cooling_total: {id: avoided_cooling_total, name: "${entity_prefix}Avoided Cooling Total"}
     bypass_state: {id: bypass_state, name: "${entity_prefix}Bypass State"}
-    # comfort function modulation (semantics not fully confirmed — see sensor.py)
-    fan_speed_modulated: {id: fan_speed_modulated, name: "${entity_prefix}Fan Speed Modulated"}
-    sensor_ventilation_mode: {id: sensor_ventilation_mode, name: "${entity_prefix}Sensor Ventilation Mode"}
     extract_air_temp: {id: extract_air_temp, name: "${entity_prefix}Extract Air Temp"}
     exhaust_air_temp: {id: exhaust_air_temp, name: "${entity_prefix}Exhaust Air Temp"}
     outdoor_air_temp: {id: outdoor_air_temp, name: "${entity_prefix}Outdoor Air Temp"}
