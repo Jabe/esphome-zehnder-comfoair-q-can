@@ -1,5 +1,10 @@
 #pragma once
 
+// this header lands in esphome.h even when no button entity is configured
+// (and the button component sources are then absent from the build)
+#include "esphome/core/defines.h"
+#ifdef USE_BUTTON
+
 #include "esphome/components/button/button.h"
 #include "esphome/core/helpers.h"
 
@@ -24,3 +29,5 @@ class ComfoAirQFanLevelTimerButton final : public button::Button, public Parente
 };
 
 }  // namespace esphome::zehnder_comfoair_q
+
+#endif  // USE_BUTTON

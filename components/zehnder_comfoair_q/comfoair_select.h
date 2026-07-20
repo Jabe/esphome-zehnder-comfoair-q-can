@@ -1,5 +1,10 @@
 #pragma once
 
+// this header lands in esphome.h even when no select entity is configured
+// (and the select component sources are then absent from the build)
+#include "esphome/core/defines.h"
+#ifdef USE_SELECT
+
 #include "esphome/components/select/select.h"
 #include "esphome/core/helpers.h"
 
@@ -29,3 +34,5 @@ class ComfoAirQSelect final : public select::Select, public Parented<ZehnderComf
 };
 
 }  // namespace esphome::zehnder_comfoair_q
+
+#endif  // USE_SELECT

@@ -1,5 +1,7 @@
 #include "comfoair_select.h"
 
+#ifdef USE_SELECT
+
 namespace esphome::zehnder_comfoair_q {
 
 void ComfoAirQSelect::control(const std::string &value) {
@@ -36,3 +38,5 @@ void ComfoAirQSelect::control(const std::string &value) {
 }
 
 }  // namespace esphome::zehnder_comfoair_q
+
+#endif  // USE_SELECT

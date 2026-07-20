@@ -1,5 +1,10 @@
 #pragma once
 
+// this header lands in esphome.h even when no number entity is configured
+// (and the number component sources are then absent from the build)
+#include "esphome/core/defines.h"
+#ifdef USE_NUMBER
+
 #include "esphome/components/number/number.h"
 #include "esphome/core/helpers.h"
 
@@ -35,3 +40,5 @@ class ComfoAirQPropertyNumber final : public number::Number, public Parented<Zeh
 };
 
 }  // namespace esphome::zehnder_comfoair_q
+
+#endif  // USE_NUMBER

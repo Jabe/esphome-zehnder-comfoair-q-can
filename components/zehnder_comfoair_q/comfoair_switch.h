@@ -1,5 +1,10 @@
 #pragma once
 
+// this header lands in esphome.h even when no switch entity is configured
+// (and the switch component sources are then absent from the build)
+#include "esphome/core/defines.h"
+#ifdef USE_SWITCH
+
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/helpers.h"
 
@@ -14,3 +19,5 @@ class ComfoAirQManualModeSwitch final : public switch_::Switch, public Parented<
 };
 
 }  // namespace esphome::zehnder_comfoair_q
+
+#endif  // USE_SWITCH
