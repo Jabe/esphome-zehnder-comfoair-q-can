@@ -13,6 +13,11 @@ number:
     profile_target_warm: {id: profile_target_warm, name: "${entity_prefix}Profile Target Warm"}
     profile_target_normal: {id: profile_target_normal, name: "${entity_prefix}Profile Target Normal"}
     profile_target_cool: {id: profile_target_cool, name: "${entity_prefix}Profile Target Cool"}
+    # RMOT season thresholds: heating season while RMOT < heating limit
+    # (default 18 °C), cooling season while RMOT > cooling limit (default
+    # 20 °C) — drive the heating/cooling_season binary sensors
+    heating_season_rmot_limit: {id: heating_season_rmot_limit, name: "${entity_prefix}Heating Season RMOT Limit"}
+    cooling_season_rmot_limit: {id: cooling_season_rmot_limit, name: "${entity_prefix}Cooling Season RMOT Limit"}
     # fan flow setpoints (m³/h) per level (0 = away; level 3 is also the
     # boost/"Party Timer" level) — handy for finding the noise sweet spot
     # from the room being ventilated
