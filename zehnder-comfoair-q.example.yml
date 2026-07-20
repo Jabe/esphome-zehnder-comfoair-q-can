@@ -21,21 +21,21 @@ packages:
   base:
     url: https://github.com/Jabe/esphome-zehnder-comfoair-q-can
     file: packages/core/base.yml
-    ref: v2.5.0
+    ref: v2.6.0
     refresh: 1d
 
-  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v2.5.0
-  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@v2.5.0
-  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@v2.5.0
-  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@v2.5.0
-  computed: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/computed.yml@v2.5.0
-  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@v2.5.0
+  board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v2.6.0
+  network: github://Jabe/esphome-zehnder-comfoair-q-can/packages/connectivity/ethernet-lan8720.yml@v2.6.0
+  comfoair: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/base.yml@v2.6.0
+  sensors: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/sensors.yml@v2.6.0
+  computed: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/computed.yml@v2.6.0
+  controls: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/controls.yml@v2.6.0
   # Setup/tuning numbers — typically included once for setup, then removed:
-  # tuning: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/tuning.yml@v2.5.0
+  # tuning: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/tuning.yml@v2.6.0
   # Only for units with the respective hardware installed:
-  # erv: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/erv.yml@v2.5.0  # units with an enthalpy exchanger
-  # pre_heater: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/pre_heater.yml@v2.5.0
-  # ghe: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/ghe.yml@v2.5.0
+  # erv: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/erv.yml@v2.6.0  # units with an enthalpy exchanger
+  # pre_heater: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/pre_heater.yml@v2.6.0
+  # ghe: github://Jabe/esphome-zehnder-comfoair-q-can/packages/comfoair/ghe.yml@v2.6.0
 
 # Top-level blocks deep-merge into the packages — no fork, no !extend needed.
 # Example: esp-idf advanced options on top of the board package:
