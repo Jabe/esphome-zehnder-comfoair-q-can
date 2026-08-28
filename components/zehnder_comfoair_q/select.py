@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import select
+from esphome.const import ENTITY_CATEGORY_CONFIG
 
 from . import (
     CONF_ZEHNDER_COMFOAIR_Q_ID,
@@ -15,7 +16,7 @@ SelectPurpose = zehnder_comfoair_q_ns.enum("SelectPurpose", is_class=True)
 
 UNIT_TEMPHUMCONTROL = 0x1D
 
-# key -> (purpose, options, state source, icon)
+# key -> (purpose, options, state source, icon, entity category)
 # State source is either ("pdo", pdo_id) or ("property", unit, subunit, property).
 # Option order must match the PDO / property value range (0-based). Property
 # state is read back from the unit on boot, per request cycle and after a set.
@@ -25,36 +26,53 @@ SELECTS = {
         ["0", "1", "2", "3"],
         ("pdo", 65),
         "mdi:fan",
+        None,
     ),
     "bypass_mode": (
         SelectPurpose.BYPASS_MODE,
         ["Auto", "Activated", "Deactivated"],
         ("pdo", 66),
         "mdi:valve",
+        None,
     ),
     "temperature_profile": (
         SelectPurpose.TEMPERATURE_PROFILE,
         ["Normal", "Cold", "Warm"],
         ("pdo", 67),
         "mdi:thermometer-lines",
+        None,
     ),
     "passive_temperature": (
         SelectPurpose.PASSIVE_TEMPERATURE,
         ["Off", "Auto", "On"],
         ("property", UNIT_TEMPHUMCONTROL, 0x01, 0x04),
         "mdi:home-thermometer",
+        None,
     ),
     "humidity_comfort": (
         SelectPurpose.HUMIDITY_COMFORT,
         ["Off", "Auto", "On"],
         ("property", UNIT_TEMPHUMCONTROL, 0x01, 0x06),
         "mdi:water-percent",
+        None,
     ),
     "humidity_protection": (
         SelectPurpose.HUMIDITY_PROTECTION,
         ["Off", "Auto", "On"],
         ("property", UNIT_TEMPHUMCONTROL, 0x01, 0x07),
         "mdi:water-alert",
+        None,
+    ),
+    # Adaptive derives the active setpoint from the RMOT comfort curve and
+    # ignores the profile target temperature numbers; Fixed applies them.
+    # The unit also knows a third mode (2, presumably an external setpoint)
+    # that is deliberately not offered here — a read-back of 2 logs a warning.
+    "temperature_profile_mode": (
+        SelectPurpose.TEMPERATURE_PROFILE_MODE,
+        ["Adaptive", "Fixed"],
+        ("property", UNIT_TEMPHUMCONTROL, 0x01, 0x08),
+        "mdi:thermometer-auto",
+        ENTITY_CATEGORY_CONFIG,
     ),
 }
 
@@ -62,8 +80,12 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ZEHNDER_COMFOAIR_Q_ID): cv.use_id(ZehnderComfoAirQ),
         **{
-            cv.Optional(key): select.select_schema(ComfoAirQSelect, icon=icon)
-            for key, (_, _, _, icon) in SELECTS.items()
+            cv.Optional(key): select.select_schema(
+                ComfoAirQSelect,
+                icon=icon,
+                **({"entity_category": category} if category else {}),
+            )
+            for key, (_, _, _, icon, category) in SELECTS.items()
         },
     }
 )
@@ -71,7 +93,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_ZEHNDER_COMFOAIR_Q_ID])
-    for key, (purpose, options, state_source, _) in SELECTS.items():
+    for key, (purpose, options, state_source, _, _) in SELECTS.items():
         if key in config:
             var = await select.new_select(config[key], options=options)
             await cg.register_parented(var, config[CONF_ZEHNDER_COMFOAIR_Q_ID])

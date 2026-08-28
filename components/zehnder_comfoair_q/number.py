@@ -28,7 +28,8 @@ UNIT_VENTILATIONCONFIG = 0x1E
 # TEMPHUMCONTROL unit in the comfoconnect PROTOCOL-RMI docs.
 # Note: in the (default) adaptive temperature profile mode the unit derives
 # its active setpoint from the running mean outdoor temperature — these
-# targets only take direct effect in fixed profile mode.
+# targets only take direct effect in fixed profile mode (switchable via the
+# temperature_profile_mode select).
 TEMPERATURE_NUMBERS = {
     "profile_target_warm": (UNIT_TEMPHUMCONTROL, 0x01, 0x0A, 0.1, 15.0, 28.0, 0.5),
     "profile_target_normal": (UNIT_TEMPHUMCONTROL, 0x01, 0x0B, 0.1, 15.0, 28.0, 0.5),

@@ -50,6 +50,11 @@ enum OffAutoOn : uint8_t {
   OAO_ON = 2,
 };
 
+enum TemperatureProfileMode : uint8_t {
+  TEMP_PROFILE_MODE_ADAPTIVE = 0,
+  TEMP_PROFILE_MODE_FIXED = 1,
+};
+
 // Sensors derived from other PDO values instead of a PDO of their own,
 // recalculated on a fixed 60s interval. The recovery ratios describe the
 // exchanger itself (balanced flows assumed, unclamped — fan waste heat can
@@ -163,6 +168,12 @@ class ZehnderComfoAirQ : public PollingComponent {
   void set_humidity_comfort(OffAutoOn oao) { send_command_set_property(0x1d /* TEMPHUMCONTROL */, 0x01, 0x06, oao); }
   // property 0x07 = humidity protection (upstream used 0x06, which is humidity comfort)
   void set_humidity_protection(OffAutoOn oao) { send_command_set_property(0x1d /* TEMPHUMCONTROL */, 0x01, 0x07, oao); }
+  // property 0x08 = temperature profile mode: adaptive derives the active
+  // setpoint from the RMOT comfort curve, fixed applies the profile target
+  // temperatures (properties 0x0A-0x0C)
+  void set_temp_profile_mode(TemperatureProfileMode mode) {
+    send_command_set_property(0x1d /* TEMPHUMCONTROL */, 0x01, 0x08, mode);
+  }
 
   void send_command_set_timer(bool enable, uint8_t subunit_id, uint8_t property_id, uint8_t property_value = 0x00,
                               uint32_t duration_secs = 1 /* constant for timers with pre-defined durations */);

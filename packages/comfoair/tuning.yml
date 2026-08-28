@@ -1,15 +1,22 @@
-# Unit setup / tuning numbers (HA config category) — RMI properties, read
+# Unit setup / tuning entities (HA config category) — RMI properties, read
 # back from the unit on boot, per poll interval and after each write. The
 # unit persists and clamps these values itself: meant for occasional tuning,
 # not for continuous automation writes.
 substitutions:
   entity_prefix: "comfoair "
 
+select:
+  - platform: zehnder_comfoair_q
+    # Adaptive (the factory default) derives the active setpoint from the
+    # RMOT comfort curve and ignores the profile targets below; Fixed
+    # applies them per selected profile (warm/normal/cool)
+    temperature_profile_mode: {id: temperature_profile_mode, name: "${entity_prefix}Temperature Profile Mode"}
+
 number:
   - platform: zehnder_comfoair_q
-    # temperature profile targets: only take direct effect in fixed profile
-    # mode — the (default) adaptive mode derives the active setpoint from
-    # the running mean outdoor temperature
+    # temperature profile targets: only take direct effect in the fixed
+    # profile mode (see the select above) — the adaptive mode derives the
+    # active setpoint from the running mean outdoor temperature
     profile_target_warm: {id: profile_target_warm, name: "${entity_prefix}Profile Target Warm"}
     profile_target_normal: {id: profile_target_normal, name: "${entity_prefix}Profile Target Normal"}
     profile_target_cool: {id: profile_target_cool, name: "${entity_prefix}Profile Target Cool"}

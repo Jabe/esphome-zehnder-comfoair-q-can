@@ -18,9 +18,10 @@ enum class SelectPurpose : uint8_t {
   BYPASS_MODE,          // PDO 66, set_bypass_mode
   TEMPERATURE_PROFILE,  // PDO 67, set_temp_profile
   // RMI properties without a state PDO; state is read back from the unit
-  PASSIVE_TEMPERATURE,  // OffAutoOn
-  HUMIDITY_COMFORT,     // OffAutoOn
-  HUMIDITY_PROTECTION,  // OffAutoOn
+  PASSIVE_TEMPERATURE,       // OffAutoOn
+  HUMIDITY_COMFORT,          // OffAutoOn
+  HUMIDITY_PROTECTION,       // OffAutoOn
+  TEMPERATURE_PROFILE_MODE,  // TemperatureProfileMode (adaptive/fixed)
 };
 
 class ComfoAirQSelect final : public select::Select, public Parented<ZehnderComfoAirQ> {

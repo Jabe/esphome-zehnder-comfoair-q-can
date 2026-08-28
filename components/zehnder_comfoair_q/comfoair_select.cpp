@@ -34,6 +34,10 @@ void ComfoAirQSelect::control(const std::string &value) {
       this->parent_->set_humidity_protection(static_cast<OffAutoOn>(*idx));
       this->parent_->refresh_properties();
       break;
+    case SelectPurpose::TEMPERATURE_PROFILE_MODE:
+      this->parent_->set_temp_profile_mode(static_cast<TemperatureProfileMode>(*idx));
+      this->parent_->refresh_properties();
+      break;
   }
 }
 
