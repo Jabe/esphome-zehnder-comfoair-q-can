@@ -21,7 +21,7 @@ packages:
   base:
     url: https://github.com/Jabe/esphome-zehnder-comfoair-q-can
     file: packages/core/base.yml
-    ref: v2.7.0
+    ref: v2.8.0
     refresh: 1d
 
   board: github://Jabe/esphome-zehnder-comfoair-q-can/packages/boards/esp32dev.yml@v2.8.0
