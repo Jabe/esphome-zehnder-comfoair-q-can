@@ -12,6 +12,17 @@ static const char *const TAG = "comfoairq";
 // separate tag so CAN frame dumps can be silenced via logger: independently
 static const char *const TAG_DUMP = "comfoair_dump";
 
+// Formats a payload for logging ("01.02.03") into a stack buffer that lives until the end of the log statement.
+// Longer payloads (multi-frame RMI responses) are truncated.
+class HexDump {
+ public:
+  explicit HexDump(const std::vector<uint8_t> &data) { format_hex_pretty_to(this->buffer_, data, '.'); }
+  const char *c_str() const { return this->buffer_; }
+
+ protected:
+  char buffer_[format_hex_pretty_size(32)];
+};
+
 // PDO frames: bits 24-28 clear (no command prefix), bit 6 set, node id in bits 0-5, PDO id in bits 14-23
 static constexpr uint32_t PDO_CAN_ID_MASK = 0b11111000000000011111111000000;
 static constexpr uint32_t PDO_CAN_ID_MATCH = 0b00000000000000000000001000000;
@@ -275,12 +286,12 @@ void ZehnderComfoAirQ::refresh_properties() {
     this->read_property(binding.unit_id, binding.subunit_id, binding.property_id,
                         [sel](bool ok, const std::vector<uint8_t> &data) {
                           if (!ok) {
-                            ESP_LOGW(TAG, "Property read for '%s' failed", sel->get_name().c_str());
+                            ESP_LOGW(TAG, "Property read for '%s' failed", LOG_STR_ARG(sel->get_log_name()));
                             return;
                           }
                           if (data.size() != 1 || data[0] >= sel->traits.get_options().size()) {
                             ESP_LOGW(TAG, "Unexpected property value for '%s': %s (please report)",
-                                     sel->get_name().c_str(), format_hex_pretty(data).c_str());
+                                     LOG_STR_ARG(sel->get_log_name()), HexDump(data).c_str());
                             return;
                           }
                           sel->publish_state((size_t) data[0]);
@@ -294,12 +305,12 @@ void ZehnderComfoAirQ::refresh_properties() {
     this->read_property(binding.unit_id, binding.subunit_id, binding.property_id,
                         [num, scale](bool ok, const std::vector<uint8_t> &data) {
                           if (!ok) {
-                            ESP_LOGW(TAG, "Property read for '%s' failed", num->get_name().c_str());
+                            ESP_LOGW(TAG, "Property read for '%s' failed", LOG_STR_ARG(num->get_log_name()));
                             return;
                           }
                           if (data.size() != 2) {
                             ESP_LOGW(TAG, "Unexpected property value for '%s': %s (please report)",
-                                     num->get_name().c_str(), format_hex_pretty(data).c_str());
+                                     LOG_STR_ARG(num->get_log_name()), HexDump(data).c_str());
                             return;
                           }
                           const auto raw = (int16_t) ((uint16_t) data[0] | ((uint16_t) data[1] << 8));
@@ -325,14 +336,14 @@ void ZehnderComfoAirQ::on_can_frame_(uint32_t can_id, bool extended_id, bool rem
     } else {
       ESP_LOGV(TAG_DUMP, "can_id: 0x%08" PRIx32 ", rtr: %d, length: %d, content: %s", can_id,
                remote_transmission_request, (int) data.size(),
-               remote_transmission_request ? "n/a" : format_hex_pretty(data).c_str());
+               remote_transmission_request ? "n/a" : HexDump(data).c_str());
     }
     return;
   }
 
   ESP_LOGD(TAG_DUMP, "Node: %d, PDO: %d, rtr: %d, length: %d, content: %s (can_id: 0x%08" PRIx32 ")",
            (int) (can_id & 0x3f), (int) (can_id >> 14), remote_transmission_request, (int) data.size(),
-           remote_transmission_request ? "n/a" : format_hex_pretty(data).c_str(), can_id);
+           remote_transmission_request ? "n/a" : HexDump(data).c_str(), can_id);
   if (remote_transmission_request)
     return;
 
@@ -967,13 +978,13 @@ void ZehnderComfoAirQ::handle_command_frame_(uint32_t can_id, const std::vector<
   if (dst_node_id != this->local_node_id_ || is_request) {
     // other bus participants talking to each other (or to us as a request)
     ESP_LOGV(TAG_DUMP, "command frame: can_id: 0x%08" PRIx32 ", length: %d, content: %s", can_id, (int) data.size(),
-             format_hex_pretty(data).c_str());
+             HexDump(data).c_str());
     return;
   }
 
   ESP_LOGD(TAG, "Command response: can_id: 0x%08" PRIx32 ", seq: %d, error: %d, length: %d, content: %s", can_id,
            (int) ((can_id >> 17) & 0x3), (int) ((can_id >> 15) & 1), (int) data.size(),
-           format_hex_pretty(data).c_str());
+           HexDump(data).c_str());
 
   if (!this->rmi_in_flight_) {
     ESP_LOGW(TAG, "Unexpected command response (no command in flight)");
@@ -987,7 +998,7 @@ void ZehnderComfoAirQ::handle_command_frame_(uint32_t can_id, const std::vector<
   }
 
   if (can_id & (1 << 15)) {  // error flag
-    ESP_LOGW(TAG, "Command failed, error response: %s", format_hex_pretty(data).c_str());
+    ESP_LOGW(TAG, "Command failed, error response: %s", HexDump(data).c_str());
     this->finish_rmi_(false, data);
     return;
   }
@@ -1035,7 +1046,7 @@ uint8_t ZehnderComfoAirQ::get_command_next_sequence_number_() {
 void ZehnderComfoAirQ::send_can_message_(uint32_t can_id, bool remote_transmission_request,
                                          const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, "Send can message: id: 0x%08" PRIx32 " (pdo_id: %" PRIu32 "), rtr: %d, size: %d, content: %s", can_id,
-           can_id >> 14, remote_transmission_request, (int) data.size(), format_hex_pretty(data).c_str());
+           can_id >> 14, remote_transmission_request, (int) data.size(), HexDump(data).c_str());
 
   if (this->canbus_ == nullptr) {
     ESP_LOGE(TAG, "Canbus not set, exiting send_can_message_.");

@@ -11,9 +11,11 @@ substitutions:
   ota_password: ""
 
 esphome:
+  # EntityBase::get_log_name() / format_hex_pretty_to() API
+  min_version: 2026.11.0
   project:
     name: Jabe.esphome-zehnder-comfoair-q-can
-    version: "2.6.0"
+    version: "2.8.0"
   name: ${device_name}
 
 external_components:
